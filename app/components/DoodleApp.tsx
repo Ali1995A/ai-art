@@ -29,8 +29,24 @@ type GenerateResponse =
   | { ok: true; imageDataUrl: string }
   | { ok: false; error: string };
 
-const DEFAULT_BASE_PROMPT =
-  "Turn the child's doodle into a friendly, cute picture. Keep the main shapes and colors. Clean background. Big simple shapes. No text. No watermark.";
+const PROMPT_CORE =
+  "You are enhancing a child's doodle. STRICTLY follow the doodle as the blueprint.\n" +
+  "- Keep the SAME subject, composition, and main shapes.\n" +
+  "- Keep relative positions and proportions of all drawn parts.\n" +
+  "- Preserve the doodle's colors as much as possible.\n" +
+  "- Only add child-friendly details that MATCH what is already drawn (eyes, simple textures, gentle shading).\n" +
+  "- Do NOT replace the subject with something else. Do NOT invent extra characters/objects.\n" +
+  "- Do NOT add text, letters, logos, or watermarks.\n" +
+  "- Use a clean, simple background.\n";
+
+const PROMPT_IMG2IMG =
+  PROMPT_CORE +
+  "Image input rules:\n" +
+  "- Treat the provided doodle image as the exact structure guide.\n" +
+  "- Improve clarity and completeness WITHOUT changing the doodle meaning.\n";
+
+const PROMPT_TXT2IMG =
+  "Create a child-friendly picture based on the idea below. Use big simple shapes, clean background, no text, no watermark.\n";
 
 function hslToHex(h: number, s: number, l: number) {
   const hh = ((h % 360) + 360) % 360;
@@ -84,7 +100,7 @@ export default function DoodleApp() {
         labelPy: "kě ài",
         labelEn: "Cute",
         promptHint:
-          "cute pastel kid illustration, soft shading, friendly face, gentle colors",
+          "cute pastel kid illustration, soft shading, gentle colors, keep doodle silhouette",
       },
       {
         id: "sticker",
@@ -95,7 +111,7 @@ export default function DoodleApp() {
         labelPy: "tiē zhǐ",
         labelEn: "Sticker",
         promptHint:
-          "sticker style, bold outline, flat colors, simple shapes, high contrast, clean",
+          "sticker style, bold outline, flat colors, simple shapes, high contrast, keep doodle silhouette",
       },
       {
         id: "watercolor",
@@ -106,7 +122,7 @@ export default function DoodleApp() {
         labelPy: "shuǐ cǎi",
         labelEn: "Watercolor",
         promptHint:
-          "watercolor, paper texture, soft edges, light washes, dreamy, child-friendly",
+          "watercolor, paper texture, soft edges, light washes, child-friendly, keep doodle silhouette",
       },
       {
         id: "storybook",
@@ -117,7 +133,7 @@ export default function DoodleApp() {
         labelPy: "huì běn",
         labelEn: "Storybook",
         promptHint:
-          "storybook illustration, warm lighting, gentle outlines, cute, cozy, simple background",
+          "storybook illustration, warm lighting, gentle outlines, cute, cozy, simple background, keep doodle silhouette",
       },
     ],
     [],
@@ -230,12 +246,13 @@ export default function DoodleApp() {
     setIsGenerating(true);
     try {
       const doodle = canvasRef.current?.exportPngDataUrl(2048) ?? "";
+      const prompt = doodle ? PROMPT_IMG2IMG : PROMPT_TXT2IMG;
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: doodle ? "img2img" : "txt2img",
-          prompt: DEFAULT_BASE_PROMPT,
+          prompt,
           stylePrompt: selectedStyle.promptHint,
           imageDataUrl: doodle || undefined,
           quality: "fast",
