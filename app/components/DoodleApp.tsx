@@ -4,7 +4,9 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DoodleCanvas, { type DoodleCanvasHandle } from "./DoodleCanvas";
 import {
+  CollapseIcon,
   DownloadIcon,
+  ExpandIcon,
   HeartIcon,
   PhotoIcon,
   SparkleIcon,
@@ -392,6 +394,7 @@ function pickStyleFromMetrics(m: {
 export default function DoodleApp() {
   const canvasRef = useRef<DoodleCanvasHandle | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const doodlePaneRef = useRef<HTMLDivElement | null>(null);
   const [hasInk, setHasInk] = useState(false);
   const [hasBackground, setHasBackground] = useState(false);
   const [styleId, setStyleId] = useState<StyleId>("auto");
@@ -406,6 +409,7 @@ export default function DoodleApp() {
   const [colorWallTarget, setColorWallTarget] = useState<"pen" | "bg">("pen");
   const [recentColors, setRecentColors] = useState<string[]>([]);
   const closeColorWall = useCallback(() => setIsColorWallOpen(false), []);
+  const [isDoodleMaximized, setIsDoodleMaximized] = useState(false);
 
   type GenJob = {
     requestedStyle: StyleId;
@@ -561,6 +565,38 @@ export default function DoodleApp() {
       }
     } catch {}
   }, []);
+
+  const toggleDoodleMaximized = useCallback(() => {
+    closeColorWall();
+    setError("");
+
+    if (!isDoodleMaximized) {
+      setIsDoodleMaximized(true);
+      const el = doodlePaneRef.current;
+      if (el && document.fullscreenEnabled && !document.fullscreenElement) {
+        void el.requestFullscreen().catch(() => {});
+      }
+      return;
+    }
+
+    setIsDoodleMaximized(false);
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => {});
+    }
+  }, [closeColorWall, isDoodleMaximized]);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      // If user exits native fullscreen (e.g. ESC), restore normal split view too.
+      if (!document.fullscreenElement && isDoodleMaximized) {
+        setIsDoodleMaximized(false);
+      }
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+    };
+  }, [isDoodleMaximized]);
 
   const rememberColor = useCallback((hex: string) => {
     const c = hex.toLowerCase();
@@ -850,6 +886,10 @@ export default function DoodleApp() {
       <div
         className="glass-card"
         style={{
+          flex: "1 1 auto",
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
           padding: 14,
           background:
             "radial-gradient(1200px 800px at 0% 0%, rgba(255, 79, 160, 0.18), transparent 55%), radial-gradient(900px 600px at 100% 0%, rgba(155, 92, 255, 0.16), transparent 55%), var(--card)",
@@ -891,6 +931,42 @@ export default function DoodleApp() {
                 <span className="text-sm font-extrabold">{jobQueue.length}</span>
               </div>
             ) : null}
+            <button
+              type="button"
+              className={[
+                "kid-button",
+                "kid-btn-sm",
+                isDoodleMaximized ? "kid-btn-selected" : "",
+              ].join(" ")}
+              onClick={toggleDoodleMaximized}
+              aria-label={isDoodleMaximized ? "Restore layout" : "Maximize doodle"}
+              style={{
+                background: isDoodleMaximized
+                  ? "linear-gradient(135deg, #ffd1e6 0%, #b3e5ff 100%)"
+                  : "linear-gradient(135deg, #fff0f7 0%, #ffd1e6 60%, #b3e5ff 100%)",
+                color: "rgba(36, 26, 34, 0.92)",
+                border: "1px solid rgba(36, 26, 34, 0.10)",
+                opacity: isGenerating ? 0.7 : 1,
+              }}
+              disabled={isGenerating}
+            >
+              {isDoodleMaximized ? (
+                <CollapseIcon className="kid-icon shrink-0" />
+              ) : (
+                <ExpandIcon className="kid-icon shrink-0" />
+              )}
+              <span className="kid-label">
+                <span className="label-line">
+                  {isDoodleMaximized ? "恢复" : "全屏"}
+                </span>
+                <span className="label-line pinyin-text opacity-75">
+                  {isDoodleMaximized ? "huī fù" : "quán píng"}
+                </span>
+                <span className="label-line en-text opacity-75">
+                  {isDoodleMaximized ? "Back" : "Full"}
+                </span>
+              </span>
+            </button>
             <button
               type="button"
               className="kid-button kid-btn-sm"
@@ -935,8 +1011,42 @@ export default function DoodleApp() {
         <div
           className="split-layout"
         >
-          <div className="glass-card pane p-3 flex flex-col">
+          <div ref={doodlePaneRef} className="glass-card pane p-3 flex flex-col">
             <div className="scroll-x no-scrollbar w-full min-w-0 flex items-center gap-2 px-1 pb-2">
+                <button
+                  type="button"
+                  className={[
+                    "kid-button",
+                    "kid-btn-sm",
+                    isDoodleMaximized ? "kid-btn-selected" : "",
+                  ].join(" ")}
+                  onClick={toggleDoodleMaximized}
+                  aria-label={isDoodleMaximized ? "Restore layout" : "Maximize doodle"}
+                  style={{
+                    background: isDoodleMaximized
+                      ? "linear-gradient(135deg, #ffd1e6 0%, #b3e5ff 100%)"
+                      : "linear-gradient(135deg, #fff0f7 0%, #ffd1e6 60%, #b3e5ff 100%)",
+                    color: "rgba(36, 26, 34, 0.92)",
+                    border: "1px solid rgba(36, 26, 34, 0.10)",
+                  }}
+                >
+                  {isDoodleMaximized ? (
+                    <CollapseIcon className="kid-icon shrink-0" />
+                  ) : (
+                    <ExpandIcon className="kid-icon shrink-0" />
+                  )}
+                  <span className="kid-label">
+                    <span className="label-line">
+                      {isDoodleMaximized ? "恢复" : "全屏"}
+                    </span>
+                    <span className="label-line pinyin-text opacity-75">
+                      {isDoodleMaximized ? "huī fù" : "quán píng"}
+                    </span>
+                    <span className="label-line en-text opacity-75">
+                      {isDoodleMaximized ? "Back" : "Full"}
+                    </span>
+                  </span>
+                </button>
                 <button
                   type="button"
                   className="kid-button kid-btn-icon"
@@ -1257,6 +1367,7 @@ export default function DoodleApp() {
             />
           </div>
 
+          {!isDoodleMaximized ? (
           <div className="glass-card pane p-3 flex flex-col">
             <div className="flex items-center justify-between px-1 pb-2 gap-2">
               <div className="scroll-x no-scrollbar flex-1 min-w-0 flex items-center gap-2 pr-2">
@@ -1373,12 +1484,13 @@ export default function DoodleApp() {
               </div>
             </div>
 
-            {error ? (
-              <div className="mt-3 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700">
-                {error}
-              </div>
-            ) : null}
+                {error ? (
+                  <div className="mt-3 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700">
+                    {error}
+                  </div>
+                ) : null}
           </div>
+          ) : null}
         </div>
       </div>
 
