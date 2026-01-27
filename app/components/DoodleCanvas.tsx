@@ -240,7 +240,9 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 0 && event.pointerType === "mouse") return;
       event.preventDefault();
-      canvas.setPointerCapture(event.pointerId);
+      try {
+        canvas.setPointerCapture(event.pointerId);
+      } catch {}
       drawingRef.current = true;
       touchDrawingRef.current = false;
       const width = Math.max(2, Math.round(brushSize * dpr));
@@ -254,6 +256,7 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
 
     const onPointerMove = (event: PointerEvent) => {
       if (!drawingRef.current) return;
+      event.preventDefault();
       const stroke = currentStrokeRef.current;
       if (!stroke) return;
       stroke.points.push(getPointFromEvent(event, canvas));
@@ -263,6 +266,7 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
     const endStroke = (event: PointerEvent) => {
       if (!drawingRef.current) return;
       drawingRef.current = false;
+      event.preventDefault();
       try {
         canvas.releasePointerCapture(event.pointerId);
       } catch {}
