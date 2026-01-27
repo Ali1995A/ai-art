@@ -515,6 +515,9 @@ export default function DoodleApp() {
   const [downloadFallback, setDownloadFallback] = useState<
     Array<{ name: string; url: string }> | null
   >(null);
+  const [shareFallback, setShareFallback] = useState<
+    Array<{ name: string; file: File }> | null
+  >(null);
   const persistTimerRef = useRef<number | null>(null);
   const [pendingDoodleState, setPendingDoodleState] = useState<DoodleState | null>(
     null,
@@ -1041,6 +1044,7 @@ export default function DoodleApp() {
       }
       return null;
     });
+    setShareFallback(null);
 
     const spec: WatermarkSpec = { creator: "CC", date: dateStampLocal() };
 
@@ -1092,13 +1096,32 @@ export default function DoodleApp() {
 
     // Best-effort iPad/iOS UX: Share Sheet -> user can "Save Image" to Photos.
     const shared = files.length
-      ? await shareFilesIfPossible(files, `Pink Doodle AI ${spec.date}`, {
-          // Some iOS/embedded browsers have flaky canShare() results.
-          skipCanShareCheck: isIOS,
-        })
+      ? await shareFilesIfPossible(
+          // iOS Share Sheet often hides “存储到照片” when sharing multiple files.
+          // Prefer single-file sharing on iPad/iPhone.
+          isIOS && files.length > 1 ? [files[0]!] : files,
+          `Pink Doodle AI ${spec.date}`,
+          {
+            // Some iOS/embedded browsers have flaky canShare() results.
+            skipCanShareCheck: isIOS,
+          },
+        )
       : false;
 
-    if (shared) return;
+    if (shared) {
+      // If we only shared the first file on iOS, offer the rest as buttons.
+      if (isIOS && files.length > 1) {
+        setShareFallback(files.slice(1).map((f) => ({ name: f.name, file: f })));
+      }
+      return;
+    }
+
+    // If iOS share is available but doesn't show “Save Image”, provide explicit per-image share buttons.
+    if (isIOS && files.length > 1) {
+      setShareFallback(files.map((f) => ({ name: f.name, file: f })));
+      setError("iPad：请在分享面板里找“存储到照片”。如果没有，请逐个点下面按钮。");
+      return;
+    }
 
     // Fallback: download (may go to Files on iOS; still works on desktop).
     const links = files.map((f) => ({ name: f.name, url: URL.createObjectURL(f) }));
@@ -1410,6 +1433,55 @@ export default function DoodleApp() {
                 >
                   <DownloadIcon className="kid-icon shrink-0" />
                   <span className="text-xs font-extrabold">下载</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {shareFallback ? (
+          <div className="px-2 pb-3">
+            <div className="glass-card px-3 py-2 flex flex-wrap items-center gap-2">
+              <div className="text-xs font-extrabold opacity-80">
+                分享到照片：<span className="pinyin-text"> fēn xiǎng</span>{" "}
+                <span className="en-text">Share</span>
+              </div>
+              <button
+                type="button"
+                className="kid-button kid-btn-icon"
+                onClick={() => setShareFallback(null)}
+                aria-label="Close"
+                style={{
+                  width: 42,
+                  height: 42,
+                  marginLeft: "auto",
+                  border: "1px solid rgba(36, 26, 34, 0.10)",
+                  background:
+                    "linear-gradient(135deg, rgba(255,255,255,0.85), rgba(255,255,255,0.55))",
+                }}
+              >
+                <span className="text-lg font-extrabold leading-none">×</span>
+              </button>
+              {shareFallback.map((f) => (
+                <button
+                  key={f.name}
+                  type="button"
+                  className="kid-button kid-btn-sm"
+                  onClick={async () => {
+                    markRestoreOnReturn();
+                    const ok = await shareFilesIfPossible(
+                      [f.file],
+                      `Pink Doodle AI ${dateStampLocal()}`,
+                      { skipCanShareCheck: true },
+                    );
+                    if (!ok) {
+                      setError("当前浏览器不支持“存储到照片”，请改用下载或长按图片保存。");
+                    }
+                  }}
+                  aria-label={`Share ${f.name}`}
+                >
+                  <PhotoIcon className="kid-icon shrink-0" />
+                  <span className="text-xs font-extrabold">分享</span>
                 </button>
               ))}
             </div>
