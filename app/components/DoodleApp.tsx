@@ -856,6 +856,21 @@ export default function DoodleApp() {
             <button
               type="button"
               className="kid-button kid-btn-sm"
+              onClick={openAlbum}
+              aria-label="Open album"
+              disabled={isGenerating}
+              style={{ opacity: isGenerating ? 0.6 : 1 }}
+            >
+              <PhotoIcon className="kid-icon shrink-0" />
+              <span className="kid-label">
+                <span className="label-line">相册</span>
+                <span className="label-line pinyin-text opacity-75">xiàng cè</span>
+                <span className="label-line en-text opacity-75">Album</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              className="kid-button kid-btn-sm"
               onClick={saveToAlbum}
               aria-label="Save"
               disabled={isGenerating || (!hasInk && !hasBackground && !imageDataUrl)}
@@ -884,23 +899,6 @@ export default function DoodleApp() {
         >
           <div className="glass-card pane p-3 flex flex-col">
             <div className="scroll-x no-scrollbar w-full min-w-0 flex items-center gap-2 px-1 pb-2">
-                <button
-                  type="button"
-                  className="kid-button kid-btn-sm"
-                  onClick={openAlbum}
-                  aria-label="Open album"
-                  disabled={isGenerating}
-                  style={{ opacity: isGenerating ? 0.6 : 1 }}
-                >
-                  <PhotoIcon className="kid-icon shrink-0" />
-                  <span className="kid-label">
-                    <span className="label-line">相册</span>
-                    <span className="label-line pinyin-text opacity-75">
-                      xiàng cè
-                    </span>
-                    <span className="label-line en-text opacity-75">Album</span>
-                  </span>
-                </button>
                 <button
                   type="button"
                   className="kid-button kid-btn-icon"
