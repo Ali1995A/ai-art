@@ -74,6 +74,14 @@ function getPointFromTouch(touch: Touch, canvas: HTMLCanvasElement): Point {
   };
 }
 
+function getPointFromMouse(event: MouseEvent, canvas: HTMLCanvasElement): Point {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (event.clientX - rect.left) / rect.width,
+    y: (event.clientY - rect.top) / rect.height,
+  };
+}
+
 function drawStroke(
   ctx: CanvasRenderingContext2D,
   stroke: Stroke,
@@ -179,6 +187,7 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
   const backgroundColorRef = useRef<string>(backgroundColor || "#ffffff");
   const drawingRef = useRef(false);
   const touchDrawingRef = useRef(false);
+  const mouseDrawingRef = useRef(false);
   const currentStrokeRef = useRef<Stroke | null>(null);
   const dpr = useMemo(() => (typeof window === "undefined" ? 1 : window.devicePixelRatio || 1), []);
 
@@ -245,6 +254,7 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
       } catch {}
       drawingRef.current = true;
       touchDrawingRef.current = false;
+      mouseDrawingRef.current = false;
       const width = Math.max(2, Math.round(brushSize * dpr));
       currentStrokeRef.current = {
         points: [getPointFromEvent(event, canvas)],
@@ -327,6 +337,46 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
     canvas.addEventListener("touchend", onTouchEnd, { passive: false });
     canvas.addEventListener("touchcancel", onTouchEnd, { passive: false });
 
+    const onMouseDown = (event: MouseEvent) => {
+      // Fallback for environments where Pointer Events are unreliable/disabled.
+      if (drawingRef.current || touchDrawingRef.current) return;
+      if (event.button !== 0) return;
+      event.preventDefault();
+      mouseDrawingRef.current = true;
+      const width = Math.max(2, Math.round(brushSize * dpr));
+      currentStrokeRef.current = {
+        points: [getPointFromMouse(event, canvas)],
+        width,
+        color,
+        mode: tool === "eraser" ? "erase" : "draw",
+      };
+    };
+
+    const onMouseMove = (event: MouseEvent) => {
+      if (!mouseDrawingRef.current) return;
+      event.preventDefault();
+      const stroke = currentStrokeRef.current;
+      if (!stroke) return;
+      stroke.points.push(getPointFromMouse(event, canvas));
+      drawStrokesLayer(canvas, [...strokesRef.current, stroke], {
+        drawFrame: true,
+      });
+    };
+
+    const onMouseUp = (event: MouseEvent) => {
+      if (!mouseDrawingRef.current) return;
+      event.preventDefault();
+      mouseDrawingRef.current = false;
+      const stroke = currentStrokeRef.current;
+      currentStrokeRef.current = null;
+      if (!stroke || stroke.points.length < 1) return;
+      commitStrokes([...strokesRef.current, stroke]);
+    };
+
+    canvas.addEventListener("mousedown", onMouseDown, { passive: false });
+    window.addEventListener("mousemove", onMouseMove, { passive: false });
+    window.addEventListener("mouseup", onMouseUp, { passive: false });
+
     return () => {
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);
@@ -337,6 +387,9 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
       canvas.removeEventListener("touchmove", onTouchMove);
       canvas.removeEventListener("touchend", onTouchEnd);
       canvas.removeEventListener("touchcancel", onTouchEnd);
+      canvas.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
     };
   }, [brushSize, color, commitStrokes, dpr, tool]);
 
@@ -452,6 +505,7 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
           position: "absolute",
           inset: 0,
           touchAction: "none",
+          cursor: "crosshair",
           borderRadius: 24,
         }}
       />
