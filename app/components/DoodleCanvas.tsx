@@ -18,6 +18,10 @@ export type DoodleCanvasHandle = {
   clear: () => void;
   undo: () => void;
   exportPngDataUrl: (maxSize: number) => string;
+  exportPngDataUrlWithWatermark: (
+    maxSize: number,
+    spec: { creator: string; date: string },
+  ) => string;
   hasInk: () => boolean;
   hasBackground: () => boolean;
   setBackgroundImage: (dataUrl: string | null) => void;
@@ -172,6 +176,46 @@ function drawStrokesLayer(
 
   for (const s of strokes) drawStroke(ctx, s, { w, h });
   drawFrame(ctx, w, h, opts);
+}
+
+function watermarkBoxForSize(w: number, h: number) {
+  const base = Math.max(18, Math.round(Math.min(w, h) * 0.03));
+  const fontSize = base;
+  const padX = Math.round(base * 0.7);
+  const padY = Math.round(base * 0.55);
+  const margin = Math.round(base * 0.6);
+  const boxW = Math.round(base * 6.6);
+  const boxH = Math.round(base * 2.2);
+  const x = w - margin - boxW;
+  const y = h - margin - boxH;
+  return { x, y, boxW, boxH, fontSize, padX, padY };
+}
+
+function drawWatermark(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  spec: { creator: string; date: string },
+) {
+  const { x, y, boxW, boxH, fontSize, padX, padY } = watermarkBoxForSize(w, h);
+  const r = Math.round(fontSize * 0.7);
+
+  ctx.save();
+  roundRectPath(ctx, x, y, boxW, boxH, r);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.70)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255, 79, 160, 0.25)";
+  ctx.lineWidth = Math.max(2, Math.round(fontSize * 0.1));
+  ctx.stroke();
+
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "rgba(36, 26, 34, 0.78)";
+  ctx.font = `700 ${fontSize}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
+  ctx.fillText(spec.date, x + padX, y + padY);
+  ctx.fillStyle = "rgba(155, 92, 255, 0.85)";
+  ctx.font = `800 ${Math.round(fontSize * 1.05)}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
+  ctx.fillText(spec.creator, x + padX, y + padY + Math.round(fontSize * 1.1));
+  ctx.restore();
 }
 
 const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas(
@@ -457,6 +501,31 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
         ctx.imageSmoothingQuality = "high";
         ctx.drawImage(bgCanvas, 0, 0, out.width, out.height);
         ctx.drawImage(drawCanvas, 0, 0, out.width, out.height);
+        return out.toDataURL("image/png");
+      },
+      exportPngDataUrlWithWatermark: (
+        maxSize: number,
+        spec: { creator: string; date: string },
+      ) => {
+        const bgCanvas = bgCanvasRef.current;
+        const drawCanvas = drawCanvasRef.current;
+        if (!bgCanvas || !drawCanvas) return "";
+
+        const out = document.createElement("canvas");
+        const w = bgCanvas.width;
+        const h = bgCanvas.height;
+        const scale = Math.min(1, maxSize / Math.max(w, h));
+        out.width = Math.max(1, Math.round(w * scale));
+        out.height = Math.max(1, Math.round(h * scale));
+
+        const ctx = out.getContext("2d");
+        if (!ctx) return "";
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(bgCanvas, 0, 0, out.width, out.height);
+        ctx.drawImage(drawCanvas, 0, 0, out.width, out.height);
+        drawWatermark(ctx, out.width, out.height, spec);
         return out.toDataURL("image/png");
       },
     }),

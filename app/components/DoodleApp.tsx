@@ -395,6 +395,7 @@ export default function DoodleApp() {
   const canvasRef = useRef<DoodleCanvasHandle | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const doodlePaneRef = useRef<HTMLDivElement | null>(null);
+  const aiImgRef = useRef<HTMLImageElement | null>(null);
   const [hasInk, setHasInk] = useState(false);
   const [hasBackground, setHasBackground] = useState(false);
   const [styleId, setStyleId] = useState<StyleId>("auto");
@@ -410,6 +411,9 @@ export default function DoodleApp() {
   const [recentColors, setRecentColors] = useState<string[]>([]);
   const closeColorWall = useCallback(() => setIsColorWallOpen(false), []);
   const [isDoodleMaximized, setIsDoodleMaximized] = useState(false);
+  const [downloadFallback, setDownloadFallback] = useState<
+    Array<{ name: string; url: string }> | null
+  >(null);
 
   type GenJob = {
     requestedStyle: StyleId;
@@ -731,6 +735,47 @@ export default function DoodleApp() {
     a.remove();
   }, []);
 
+  const watermarkImageElementToDataUrl = useCallback(
+    (img: HTMLImageElement, spec: WatermarkSpec) => {
+      const w = img.naturalWidth || img.width;
+      const h = img.naturalHeight || img.height;
+      if (!w || !h) return "";
+
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return "";
+
+      try {
+        ctx.drawImage(img, 0, 0, w, h);
+      } catch {
+        return "";
+      }
+
+      const { x, y, boxW, boxH, fontSize, padX, padY } = watermarkBoxForSize(w, h);
+      const r = Math.round(fontSize * 0.7);
+      ctx.save();
+      roundRect(ctx, x, y, boxW, boxH, r);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.70)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255, 79, 160, 0.25)";
+      ctx.lineWidth = Math.max(2, Math.round(fontSize * 0.1));
+      ctx.stroke();
+      ctx.fillStyle = "rgba(36, 26, 34, 0.78)";
+      ctx.textBaseline = "top";
+      ctx.font = `700 ${fontSize}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
+      ctx.fillText(spec.date, x + padX, y + padY);
+      ctx.fillStyle = "rgba(155, 92, 255, 0.85)";
+      ctx.font = `800 ${Math.round(fontSize * 1.05)}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
+      ctx.fillText(spec.creator, x + padX, y + padY + Math.round(fontSize * 1.1));
+      ctx.restore();
+
+      return canvas.toDataURL("image/png");
+    },
+    [],
+  );
+
   const shareFilesIfPossible = useCallback(
     async (files: File[], title: string) => {
       const nav = navigator as unknown as {
@@ -752,27 +797,54 @@ export default function DoodleApp() {
 
   const saveToAlbum = useCallback(async () => {
     setError("");
+    // Clean previous fallback links (if any)
+    setDownloadFallback((prev) => {
+      if (prev) {
+        for (const f of prev) URL.revokeObjectURL(f.url);
+      }
+      return null;
+    });
+
     const spec: WatermarkSpec = { creator: "CC", date: dateStampLocal() };
 
-    const doodle = canvasRef.current?.exportPngDataUrl(2048) ?? "";
     const files: File[] = [];
 
-    if (doodle) {
-      const watermarked = await addWatermarkToDataUrl(doodle, spec);
-      const blob = dataUrlToBlob(watermarked);
-      files.push(new File([blob], `doodle_${spec.date}_CC.png`, { type: "image/png" }));
+    // IMPORTANT: Keep downloads within the same user gesture as much as possible.
+    // Export doodle + watermark synchronously from canvas (no async image decode).
+    const doodleWatermarked =
+      canvasRef.current?.exportPngDataUrlWithWatermark(2048, spec) ?? "";
+    if (doodleWatermarked) {
+      const blob = dataUrlToBlob(doodleWatermarked);
+      files.push(
+        new File([blob], `doodle_${spec.date}_CC.png`, { type: "image/png" }),
+      );
     }
 
     if (imageDataUrl) {
-      let aiDataUrl = imageDataUrl;
-      if (!aiDataUrl.startsWith("data:")) {
-        const res = await fetch(aiDataUrl, { mode: "cors" });
-        const blob = await res.blob();
-        aiDataUrl = await blobToDataUrl(blob);
+      const img = aiImgRef.current;
+      const canUseImg =
+        img && img.complete && (img.naturalWidth || 0) > 0 && (img.naturalHeight || 0) > 0;
+      const aiWatermarked =
+        canUseImg ? watermarkImageElementToDataUrl(img, spec) : "";
+
+      if (aiWatermarked) {
+        const blob = dataUrlToBlob(aiWatermarked);
+        files.push(new File([blob], `ai_${spec.date}_CC.png`, { type: "image/png" }));
+      } else if (imageDataUrl.startsWith("data:")) {
+        // Fallback (still sync): save raw data-url if watermark cannot be applied.
+        const blob = dataUrlToBlob(imageDataUrl);
+        files.push(new File([blob], `ai_${spec.date}_raw.png`, { type: "image/png" }));
+      } else {
+        // Last-resort async fallback; may lose "user activation" for automatic download.
+        try {
+          const res = await fetch(imageDataUrl, { mode: "cors" });
+          const blob = await res.blob();
+          const aiDataUrl = await blobToDataUrl(blob);
+          const watermarked = await addWatermarkToDataUrl(aiDataUrl, spec);
+          const outBlob = dataUrlToBlob(watermarked);
+          files.push(new File([outBlob], `ai_${spec.date}_CC.png`, { type: "image/png" }));
+        } catch {}
       }
-      const watermarked = await addWatermarkToDataUrl(aiDataUrl, spec);
-      const blob = dataUrlToBlob(watermarked);
-      files.push(new File([blob], `ai_${spec.date}_CC.png`, { type: "image/png" }));
     }
 
     // Best-effort iPad/iOS UX: Share Sheet -> user can "Save Image" to Photos.
@@ -783,13 +855,22 @@ export default function DoodleApp() {
     if (shared) return;
 
     // Fallback: download (may go to Files on iOS; still works on desktop).
-    for (const f of files) {
-      const url = URL.createObjectURL(f);
-      downloadDataUrl(url, f.name);
-      setTimeout(() => URL.revokeObjectURL(url), 30_000);
-      await new Promise((r) => setTimeout(r, 250));
+    const links = files.map((f) => ({ name: f.name, url: URL.createObjectURL(f) }));
+    for (const l of links) {
+      downloadDataUrl(l.url, l.name);
+      setTimeout(() => URL.revokeObjectURL(l.url), 30_000);
     }
-  }, [downloadDataUrl, imageDataUrl, shareFilesIfPossible]);
+    // If browser blocks auto-downloads, show backup buttons for a manual tap.
+    if (links.length > 1) {
+      setDownloadFallback(links);
+      setTimeout(() => {
+        setDownloadFallback((prev) => {
+          if (prev) for (const f of prev) URL.revokeObjectURL(f.url);
+          return null;
+        });
+      }, 60_000);
+    }
+  }, [downloadDataUrl, imageDataUrl, shareFilesIfPossible, watermarkImageElementToDataUrl]);
 
   const clearAll = useCallback(() => {
     setError("");
@@ -933,42 +1014,6 @@ export default function DoodleApp() {
             ) : null}
             <button
               type="button"
-              className={[
-                "kid-button",
-                "kid-btn-sm",
-                isDoodleMaximized ? "kid-btn-selected" : "",
-              ].join(" ")}
-              onClick={toggleDoodleMaximized}
-              aria-label={isDoodleMaximized ? "Restore layout" : "Maximize doodle"}
-              style={{
-                background: isDoodleMaximized
-                  ? "linear-gradient(135deg, #ffd1e6 0%, #b3e5ff 100%)"
-                  : "linear-gradient(135deg, #fff0f7 0%, #ffd1e6 60%, #b3e5ff 100%)",
-                color: "rgba(36, 26, 34, 0.92)",
-                border: "1px solid rgba(36, 26, 34, 0.10)",
-                opacity: isGenerating ? 0.7 : 1,
-              }}
-              disabled={isGenerating}
-            >
-              {isDoodleMaximized ? (
-                <CollapseIcon className="kid-icon shrink-0" />
-              ) : (
-                <ExpandIcon className="kid-icon shrink-0" />
-              )}
-              <span className="kid-label">
-                <span className="label-line">
-                  {isDoodleMaximized ? "恢复" : "全屏"}
-                </span>
-                <span className="label-line pinyin-text opacity-75">
-                  {isDoodleMaximized ? "huī fù" : "quán píng"}
-                </span>
-                <span className="label-line en-text opacity-75">
-                  {isDoodleMaximized ? "Back" : "Full"}
-                </span>
-              </span>
-            </button>
-            <button
-              type="button"
               className="kid-button kid-btn-sm"
               onClick={openAlbum}
               aria-label="Open album"
@@ -1008,6 +1053,30 @@ export default function DoodleApp() {
           </div>
         </div>
 
+        {downloadFallback ? (
+          <div className="px-2 pb-3">
+            <div className="glass-card px-3 py-2 flex flex-wrap items-center gap-2">
+              <div className="text-xs font-extrabold opacity-80">
+                如果没自动下载，请点：
+                <span className="pinyin-text"> rú guǒ</span>{" "}
+                <span className="en-text">If blocked</span>
+              </div>
+              {downloadFallback.map((f) => (
+                <button
+                  key={f.url}
+                  type="button"
+                  className="kid-button kid-btn-sm"
+                  onClick={() => downloadDataUrl(f.url, f.name)}
+                  aria-label={`Download ${f.name}`}
+                >
+                  <DownloadIcon className="kid-icon shrink-0" />
+                  <span className="text-xs font-extrabold">下载</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <div
           className="split-layout"
         >
@@ -1017,15 +1086,15 @@ export default function DoodleApp() {
                   type="button"
                   className={[
                     "kid-button",
-                    "kid-btn-sm",
+                    "kid-btn-icon",
                     isDoodleMaximized ? "kid-btn-selected" : "",
                   ].join(" ")}
                   onClick={toggleDoodleMaximized}
                   aria-label={isDoodleMaximized ? "Restore layout" : "Maximize doodle"}
+                  title={isDoodleMaximized ? "恢复 / huī fù / Back" : "全屏 / quán píng / Full"}
                   style={{
-                    background: isDoodleMaximized
-                      ? "linear-gradient(135deg, #ffd1e6 0%, #b3e5ff 100%)"
-                      : "linear-gradient(135deg, #fff0f7 0%, #ffd1e6 60%, #b3e5ff 100%)",
+                    background:
+                      "linear-gradient(135deg, rgba(255,255,255,0.85), rgba(255,255,255,0.55))",
                     color: "rgba(36, 26, 34, 0.92)",
                     border: "1px solid rgba(36, 26, 34, 0.10)",
                   }}
@@ -1035,17 +1104,6 @@ export default function DoodleApp() {
                   ) : (
                     <ExpandIcon className="kid-icon shrink-0" />
                   )}
-                  <span className="kid-label">
-                    <span className="label-line">
-                      {isDoodleMaximized ? "恢复" : "全屏"}
-                    </span>
-                    <span className="label-line pinyin-text opacity-75">
-                      {isDoodleMaximized ? "huī fù" : "quán píng"}
-                    </span>
-                    <span className="label-line en-text opacity-75">
-                      {isDoodleMaximized ? "Back" : "Full"}
-                    </span>
-                  </span>
                 </button>
                 <button
                   type="button"
@@ -1189,6 +1247,7 @@ export default function DoodleApp() {
                   disabled={isGenerating}
                   className="kid-slider"
                   aria-label="Brush size slider"
+                  style={{ flex: "1 1 140px", minWidth: 96, maxWidth: 220 }}
                   onChange={(e) => setBrushSize(Number(e.target.value))}
                 />
                 <div
@@ -1420,6 +1479,7 @@ export default function DoodleApp() {
                   <img
                     src={imageDataUrl}
                     alt=""
+                    ref={aiImgRef}
                     className="h-full w-full object-contain"
                     draggable={false}
                   />
