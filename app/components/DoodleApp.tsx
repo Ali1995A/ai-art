@@ -12,7 +12,18 @@ import {
   WandIcon,
 } from "./icons";
 
-type StyleId = "cute" | "sticker" | "watercolor" | "storybook";
+type StyleId =
+  | "auto"
+  | "cute3d"
+  | "fantasy"
+  | "cyberpunk"
+  | "blocks"
+  | "feltclay"
+  | "blueprint"
+  | "storybook"
+  | "sticker"
+  | "watercolor"
+  | "embroidery";
 
 type StyleOption = {
   id: StyleId;
@@ -244,12 +255,135 @@ async function stripOurWatermarkFromDataUrl(dataUrl: string): Promise<string> {
   return canvas.toDataURL("image/png");
 }
 
+function rgbToHsl(r: number, g: number, b: number) {
+  const rr = r / 255;
+  const gg = g / 255;
+  const bb = b / 255;
+  const max = Math.max(rr, gg, bb);
+  const min = Math.min(rr, gg, bb);
+  const d = max - min;
+
+  let h = 0;
+  let s = 0;
+  const l = (max + min) / 2;
+
+  if (d !== 0) {
+    s = d / (1 - Math.abs(2 * l - 1));
+    switch (max) {
+      case rr:
+        h = ((gg - bb) / d) % 6;
+        break;
+      case gg:
+        h = (bb - rr) / d + 2;
+        break;
+      default:
+        h = (rr - gg) / d + 4;
+        break;
+    }
+    h = Math.round(h * 60);
+    if (h < 0) h += 360;
+  }
+
+  return { h, s, l };
+}
+
+async function analyzeDoodle(dataUrl: string) {
+  const img = await loadImageFromDataUrl(dataUrl);
+  const w = 128;
+  const h = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) {
+    return {
+      inkRatio: 0.2,
+      satAvg: 0.4,
+      lumAvg: 0.6,
+      hueVar: 0.4,
+      edge: 0.2,
+    };
+  }
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "low";
+  ctx.drawImage(img, 0, 0, w, h);
+  const { data } = ctx.getImageData(0, 0, w, h);
+
+  let ink = 0;
+  let satSum = 0;
+  let lumSum = 0;
+  const hues: number[] = [];
+
+  const lum = new Float32Array(w * h);
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const a = data[i + 3];
+    const isInk = a > 10 && (r < 250 || g < 250 || b < 250);
+    if (isInk) ink++;
+
+    const y = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    lum[p] = y;
+    lumSum += y;
+
+    const hsl = rgbToHsl(r, g, b);
+    satSum += hsl.s;
+    if (isInk) hues.push(hsl.h);
+  }
+
+  let edge = 0;
+  for (let y = 0; y < h - 1; y++) {
+    for (let x = 0; x < w - 1; x++) {
+      const p = y * w + x;
+      const d1 = Math.abs(lum[p] - lum[p + 1]);
+      const d2 = Math.abs(lum[p] - lum[p + w]);
+      if (d1 + d2 > 0.25) edge++;
+    }
+  }
+
+  const hueAvg =
+    hues.length > 0 ? hues.reduce((a, b) => a + b, 0) / hues.length : 0;
+  const hueVar =
+    hues.length > 0
+      ? hues.reduce((a, v) => a + Math.abs(v - hueAvg), 0) / (hues.length * 180)
+      : 0;
+
+  const total = w * h;
+  return {
+    inkRatio: ink / total,
+    satAvg: satSum / total,
+    lumAvg: lumSum / total,
+    hueVar,
+    edge: edge / ((w - 1) * (h - 1)),
+  };
+}
+
+function pickStyleFromMetrics(m: {
+  inkRatio: number;
+  satAvg: number;
+  lumAvg: number;
+  hueVar: number;
+  edge: number;
+}): Exclude<StyleId, "auto"> {
+  if (m.inkRatio < 0.03) return "sticker";
+  if (m.satAvg < 0.18 && m.edge > 0.14) return "blueprint";
+  if (m.satAvg > 0.45 && m.lumAvg < 0.5) return "cyberpunk";
+  if (m.inkRatio < 0.09 && m.edge < 0.1) return "blocks";
+  if (m.edge < 0.11 && m.satAvg < 0.35) return "feltclay";
+  if (m.hueVar > 0.22 && m.satAvg > 0.35) return "fantasy";
+  if (m.satAvg < 0.28 && m.edge < 0.12) return "watercolor";
+  if (m.inkRatio > 0.22) return "embroidery";
+  return "storybook";
+}
+
 export default function DoodleApp() {
   const canvasRef = useRef<DoodleCanvasHandle | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [hasInk, setHasInk] = useState(false);
   const [hasBackground, setHasBackground] = useState(false);
-  const [styleId, setStyleId] = useState<StyleId>("cute");
+  const [styleId, setStyleId] = useState<StyleId>("auto");
   const [isGenerating, setIsGenerating] = useState(false);
   const [imageDataUrl, setImageDataUrl] = useState<string>("");
   const [error, setError] = useState<string>("");
@@ -264,15 +398,91 @@ export default function DoodleApp() {
   const styles = useMemo<StyleOption[]>(
     () => [
       {
-        id: "cute",
+        id: "auto",
+        color: "linear-gradient(135deg, #ffd1e6 0%, #9b5cff 55%, #2bb3ff 100%)",
+        icon: <WandIcon className="h-7 w-7" />,
+        ariaLabel: "Auto style",
+        labelZh: "自动",
+        labelPy: "zì dòng",
+        labelEn: "Auto",
+        promptHint: "",
+      },
+      {
+        id: "cute3d",
         color: "linear-gradient(135deg, #ffd1e6 0%, #b3e5ff 100%)",
         icon: <HeartIcon className="h-7 w-7" />,
-        ariaLabel: "Cute style",
-        labelZh: "可爱",
-        labelPy: "kě ài",
-        labelEn: "Cute",
+        ariaLabel: "3D animation style",
+        labelZh: "3D动画",
+        labelPy: "sān wéi dòng huà",
+        labelEn: "3D",
         promptHint:
-          "cute pastel kid illustration, soft shading, gentle colors, keep doodle silhouette",
+          "family-friendly 3D animation look, soft global illumination, clean surfaces, big simple shapes, keep doodle silhouette",
+      },
+      {
+        id: "fantasy",
+        color: "linear-gradient(135deg, #d6c8ff 0%, #c8ffe1 50%, #ffd1e6 100%)",
+        icon: <SparkleIcon className="h-7 w-7" />,
+        ariaLabel: "Fantasy illustration style",
+        labelZh: "奇幻",
+        labelPy: "qí huàn",
+        labelEn: "Fantasy",
+        promptHint:
+          "fantasy illustration, magical glow, whimsical details, child-friendly, keep doodle silhouette",
+      },
+      {
+        id: "cyberpunk",
+        color: "linear-gradient(135deg, #2bb3ff 0%, #9b5cff 55%, #ff4fa0 100%)",
+        icon: <SparkleIcon className="h-7 w-7" />,
+        ariaLabel: "Cyberpunk style",
+        labelZh: "赛博",
+        labelPy: "sài bó",
+        labelEn: "Cyber",
+        promptHint:
+          "cyberpunk neon, rim lighting, glowing accents, high contrast, keep doodle silhouette, no text",
+      },
+      {
+        id: "blocks",
+        color: "linear-gradient(135deg, #ffe7a8 0%, #ffd1e6 55%, #b3e5ff 100%)",
+        icon: <HeartIcon className="h-7 w-7" />,
+        ariaLabel: "Blocks style",
+        labelZh: "积木",
+        labelPy: "jī mù",
+        labelEn: "Blocks",
+        promptHint:
+          "toy blocks / brick-built look, chunky shapes, plastic material, simple shading, keep doodle silhouette",
+      },
+      {
+        id: "feltclay",
+        color: "linear-gradient(135deg, #c8ffe1 0%, #ffe1ef 55%, #ffd74a 100%)",
+        icon: <HeartIcon className="h-7 w-7" />,
+        ariaLabel: "Felt and clay style",
+        labelZh: "毛毡",
+        labelPy: "yáng máo zhān",
+        labelEn: "Felt/Clay",
+        promptHint:
+          "wool felt / clay handmade texture, soft fibers, matte surface, cozy, keep doodle silhouette",
+      },
+      {
+        id: "blueprint",
+        color: "linear-gradient(135deg, #b3e5ff 0%, #d6c8ff 100%)",
+        icon: <WandIcon className="h-7 w-7" />,
+        ariaLabel: "Blueprint style",
+        labelZh: "蓝图",
+        labelPy: "lán tú",
+        labelEn: "Blueprint",
+        promptHint:
+          "sci-fi blueprint / engineering drawing, clean lines, subtle grid, technical shading, keep doodle silhouette, no text",
+      },
+      {
+        id: "storybook",
+        color: "linear-gradient(135deg, #b3e5ff 0%, #ffd1e6 100%)",
+        icon: <WandIcon className="h-7 w-7" />,
+        ariaLabel: "Picture book illustration style",
+        labelZh: "绘本",
+        labelPy: "huì běn",
+        labelEn: "Book",
+        promptHint:
+          "beautiful picture book illustration, warm lighting, gentle outlines, cozy, simple background, keep doodle silhouette",
       },
       {
         id: "sticker",
@@ -283,7 +493,7 @@ export default function DoodleApp() {
         labelPy: "tiē zhǐ",
         labelEn: "Sticker",
         promptHint:
-          "sticker style, bold outline, flat colors, simple shapes, high contrast, keep doodle silhouette",
+          "minimal clean line + sticker style, bold outline, flat colors, simple shapes, high contrast, keep doodle silhouette",
       },
       {
         id: "watercolor",
@@ -297,15 +507,15 @@ export default function DoodleApp() {
           "watercolor, paper texture, soft edges, light washes, child-friendly, keep doodle silhouette",
       },
       {
-        id: "storybook",
-        color: "linear-gradient(135deg, #b3e5ff 0%, #ffd1e6 100%)",
-        icon: <WandIcon className="h-7 w-7" />,
-        ariaLabel: "Storybook style",
-        labelZh: "绘本",
-        labelPy: "huì běn",
-        labelEn: "Storybook",
+        id: "embroidery",
+        color: "linear-gradient(135deg, #ffd1e6 0%, #c8ffe1 50%, #d6c8ff 100%)",
+        icon: <SparkleIcon className="h-7 w-7" />,
+        ariaLabel: "Embroidery style",
+        labelZh: "刺绣",
+        labelPy: "cì xiù",
+        labelEn: "Embroidery",
         promptHint:
-          "storybook illustration, warm lighting, gentle outlines, cute, cozy, simple background, keep doodle silhouette",
+          "embroidery / knitted texture, stitched edges, fabric weave, cozy handmade, keep doodle silhouette",
       },
     ],
     [],
@@ -486,13 +696,23 @@ export default function DoodleApp() {
     try {
       const doodle = canvasRef.current?.exportPngDataUrl(2048) ?? "";
       const prompt = doodle ? PROMPT_IMG2IMG : PROMPT_TXT2IMG;
+      const effectiveStyleId: Exclude<StyleId, "auto"> =
+        styleId === "auto"
+          ? doodle
+            ? pickStyleFromMetrics(await analyzeDoodle(doodle))
+            : "storybook"
+          : (styleId as Exclude<StyleId, "auto">);
+      if (styleId === "auto") setStyleId(effectiveStyleId);
+      const effectiveStyle =
+        styles.find((s) => s.id === effectiveStyleId) ??
+        styles.find((s) => s.id === "storybook")!;
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: doodle ? "img2img" : "txt2img",
           prompt,
-          stylePrompt: selectedStyle.promptHint,
+          stylePrompt: effectiveStyle.promptHint,
           imageDataUrl: doodle || undefined,
           quality: "fast",
         }),
@@ -507,7 +727,7 @@ export default function DoodleApp() {
     } finally {
       setIsGenerating(false);
     }
-  }, [selectedStyle.promptHint]);
+  }, [styleId, styles]);
 
   return (
     <div className="app-viewport">
