@@ -762,6 +762,32 @@ export default function DoodleApp() {
               Pink Doodle AI
             </div>
           </div>
+
+          <div className="scroll-x no-scrollbar flex items-center gap-2 shrink-0 pl-2">
+            <button
+              type="button"
+              className="kid-button kid-btn-sm"
+              onClick={saveToAlbum}
+              aria-label="Save"
+              disabled={isGenerating || (!hasInk && !hasBackground && !imageDataUrl)}
+              style={{
+                background: "linear-gradient(135deg, #c8ffe1 0%, #ffd1e6 100%)",
+                color: "rgba(36, 26, 34, 0.92)",
+                border: "1px solid rgba(36, 26, 34, 0.10)",
+                opacity:
+                  isGenerating || (!hasInk && !hasBackground && !imageDataUrl)
+                    ? 0.55
+                    : 1,
+              }}
+            >
+              <DownloadIcon className="kid-icon shrink-0" />
+              <span className="kid-label">
+                <span className="label-line">保存</span>
+                <span className="label-line pinyin-text opacity-75">bǎo cún</span>
+                <span className="label-line en-text opacity-75">Save</span>
+              </span>
+            </button>
+          </div>
         </div>
 
         <div
@@ -1129,34 +1155,6 @@ export default function DoodleApp() {
                     </button>
                   );
                 })}
-              </div>
-              <div className="scroll-x no-scrollbar flex items-center gap-2 shrink-0 pl-2">
-                <button
-                  type="button"
-                  className="kid-button kid-btn-md"
-                  onClick={saveToAlbum}
-                  aria-label="Save"
-                  disabled={isGenerating || (!hasInk && !hasBackground && !imageDataUrl)}
-                  style={{
-                    background:
-                      "linear-gradient(135deg, #c8ffe1 0%, #ffd1e6 100%)",
-                    color: "rgba(36, 26, 34, 0.92)",
-                    border: "1px solid rgba(36, 26, 34, 0.10)",
-                    opacity:
-                      isGenerating || (!hasInk && !hasBackground && !imageDataUrl)
-                        ? 0.55
-                        : 1,
-                  }}
-                >
-                  <DownloadIcon className="kid-icon shrink-0" />
-                  <span className="kid-label">
-                    <span className="label-line">保存</span>
-                    <span className="label-line pinyin-text opacity-75">
-                      bǎo cún
-                    </span>
-                    <span className="label-line en-text opacity-75">Save</span>
-                  </span>
-                </button>
               </div>
             </div>
 
