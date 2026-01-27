@@ -103,7 +103,6 @@ export async function POST(req: Request) {
                 quality,
                 watermark: false,
                 sequential_image_generation: "disabled",
-                response_format: "base64_json",
                 stream: false,
               },
             }),
