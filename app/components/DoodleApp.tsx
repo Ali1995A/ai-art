@@ -686,6 +686,12 @@ export default function DoodleApp() {
     }
   }, []);
 
+  const markRestoreOnReturn = useCallback(() => {
+    try {
+      sessionStorage.setItem("ai-art:restoreOnReturn", "1");
+    } catch {}
+  }, []);
+
   const schedulePersist = useCallback(
     (nextDoodle?: DoodleState | null, nextAiPreview?: string | null) => {
       const doodle = nextDoodle ?? pendingDoodleState;
@@ -816,6 +822,12 @@ export default function DoodleApp() {
   // Restore last session (fix iPad "back from Save" losing canvas state).
   useEffect(() => {
     try {
+      // IMPORTANT: Do NOT restore when opening a fresh tab/window.
+      // Only restore when we explicitly marked that a save/download flow might reload the page.
+      const shouldRestore = sessionStorage.getItem("ai-art:restoreOnReturn") === "1";
+      if (!shouldRestore) return;
+      sessionStorage.removeItem("ai-art:restoreOnReturn");
+
       const raw = localStorage.getItem("ai-art:session");
       if (!raw) return;
       const parsed = JSON.parse(raw) as unknown;
@@ -959,6 +971,7 @@ export default function DoodleApp() {
 
   const saveToAlbum = useCallback(async () => {
     setError("");
+    markRestoreOnReturn();
     // Clean previous fallback links (if any)
     setDownloadFallback((prev) => {
       if (prev) {
@@ -1048,7 +1061,13 @@ export default function DoodleApp() {
       downloadDataUrl(l.url, l.name);
       setTimeout(() => URL.revokeObjectURL(l.url), 30_000);
     }
-  }, [downloadDataUrl, imageDataUrl, shareFilesIfPossible, watermarkImageElementToBlob]);
+  }, [
+    downloadDataUrl,
+    imageDataUrl,
+    markRestoreOnReturn,
+    shareFilesIfPossible,
+    watermarkImageElementToBlob,
+  ]);
 
   const clearAll = useCallback(() => {
     setError("");
@@ -1305,7 +1324,10 @@ export default function DoodleApp() {
                   key={f.url}
                   type="button"
                   className="kid-button kid-btn-sm"
-                  onClick={() => downloadDataUrl(f.url, f.name)}
+                  onClick={() => {
+                    markRestoreOnReturn();
+                    downloadDataUrl(f.url, f.name);
+                  }}
                   aria-label={`Download ${f.name}`}
                 >
                   <DownloadIcon className="kid-icon shrink-0" />
