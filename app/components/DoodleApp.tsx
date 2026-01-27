@@ -777,13 +777,13 @@ export default function DoodleApp() {
   );
 
   const shareFilesIfPossible = useCallback(
-    async (files: File[], title: string) => {
+    async (files: File[], title: string, opts?: { skipCanShareCheck?: boolean }) => {
       const nav = navigator as unknown as {
         canShare?: (data: { files: File[] }) => boolean;
         share?: (data: { files: File[]; title?: string; text?: string }) => Promise<void>;
       };
       if (!nav.share) return false;
-      if (nav.canShare && !nav.canShare({ files })) return false;
+      if (!opts?.skipCanShareCheck && nav.canShare && !nav.canShare({ files })) return false;
 
       try {
         await nav.share({ files, title, text: title });
@@ -847,28 +847,46 @@ export default function DoodleApp() {
       }
     }
 
+    const isIOS =
+      typeof navigator !== "undefined" &&
+      (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        // iPadOS 13+ reports as MacIntel
+        ((navigator as unknown as { platform?: string; maxTouchPoints?: number }).platform ===
+          "MacIntel" &&
+          ((navigator as unknown as { maxTouchPoints?: number }).maxTouchPoints ?? 0) > 1));
+
     // Best-effort iPad/iOS UX: Share Sheet -> user can "Save Image" to Photos.
     const shared = files.length
-      ? await shareFilesIfPossible(files, `Pink Doodle AI ${spec.date}`)
+      ? await shareFilesIfPossible(files, `Pink Doodle AI ${spec.date}`, {
+          // Some iOS/embedded browsers have flaky canShare() results.
+          skipCanShareCheck: isIOS,
+        })
       : false;
 
     if (shared) return;
 
     // Fallback: download (may go to Files on iOS; still works on desktop).
     const links = files.map((f) => ({ name: f.name, url: URL.createObjectURL(f) }));
-    for (const l of links) {
-      downloadDataUrl(l.url, l.name);
-      setTimeout(() => URL.revokeObjectURL(l.url), 30_000);
-    }
-    // If browser blocks auto-downloads, show backup buttons for a manual tap.
+
+    // iOS Safari often blocks multiple automatic downloads from one tap.
+    // Show explicit download buttons instead (still 1-tap each).
     if (links.length > 1) {
       setDownloadFallback(links);
+      if (isIOS) {
+        setError("iPad 浏览器可能会拦截自动下载，请点上方“下载”按钮保存。");
+      }
       setTimeout(() => {
         setDownloadFallback((prev) => {
           if (prev) for (const f of prev) URL.revokeObjectURL(f.url);
           return null;
         });
       }, 60_000);
+      return;
+    }
+
+    for (const l of links) {
+      downloadDataUrl(l.url, l.name);
+      setTimeout(() => URL.revokeObjectURL(l.url), 30_000);
     }
   }, [downloadDataUrl, imageDataUrl, shareFilesIfPossible, watermarkImageElementToDataUrl]);
 
@@ -1057,7 +1075,7 @@ export default function DoodleApp() {
           <div className="px-2 pb-3">
             <div className="glass-card px-3 py-2 flex flex-wrap items-center gap-2">
               <div className="text-xs font-extrabold opacity-80">
-                如果没自动下载，请点：
+                如果没自动保存，请点：
                 <span className="pinyin-text"> rú guǒ</span>{" "}
                 <span className="en-text">If blocked</span>
               </div>

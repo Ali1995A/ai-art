@@ -76,6 +76,10 @@ function extractImage(json: unknown): { kind: "b64" | "url"; value: string } | n
   return null;
 }
 
+function toBase64(buffer: ArrayBuffer) {
+  return Buffer.from(buffer).toString("base64");
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as ReqBody;
@@ -156,7 +160,27 @@ export async function POST(req: Request) {
     }
 
     if (extracted?.kind === "url") {
-      return NextResponse.json({ ok: true, imageDataUrl: extracted.value });
+      // Make client-side saving/watermarking reliable by returning a data URL
+      // (avoids CORS-tainted canvas in Safari/WeChat browsers).
+      const imgRes = await fetch(extracted.value);
+      if (!imgRes.ok) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: `Upstream image fetch failed (${imgRes.status})`,
+          },
+          { status: 502 },
+        );
+      }
+      const contentType =
+        imgRes.headers.get("content-type")?.split(";")[0]?.trim() ||
+        "image/png";
+      const buf = await imgRes.arrayBuffer();
+      const b64 = toBase64(buf);
+      return NextResponse.json({
+        ok: true,
+        imageDataUrl: `data:${contentType};base64,${b64}`,
+      });
     }
 
     return NextResponse.json(
