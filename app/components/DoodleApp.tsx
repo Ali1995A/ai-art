@@ -388,7 +388,7 @@ export default function DoodleApp() {
   const [imageDataUrl, setImageDataUrl] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [tool, setTool] = useState<"pen" | "eraser">("pen");
-  const [brushSize, setBrushSize] = useState(12);
+  const [brushSize, setBrushSize] = useState(24);
   const [color, setColor] = useState("#9b5cff");
   const [backgroundColor, setBackgroundColor] = useState("#ffffff");
   const [isColorWallOpen, setIsColorWallOpen] = useState(false);
@@ -1034,8 +1034,8 @@ export default function DoodleApp() {
 
                 <input
                   type="range"
-                  min={4}
-                  max={36}
+                  min={8}
+                  max={72}
                   step={1}
                   value={brushSize}
                   disabled={isGenerating}
