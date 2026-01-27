@@ -390,7 +390,7 @@ export default function DoodleApp() {
   const [tool, setTool] = useState<"pen" | "eraser">("pen");
   const [brushSize, setBrushSize] = useState(12);
   const [color, setColor] = useState("#9b5cff");
-  const [backgroundColor, setBackgroundColor] = useState("#fff0f7");
+  const [backgroundColor, setBackgroundColor] = useState("#ffffff");
   const [isColorWallOpen, setIsColorWallOpen] = useState(false);
   const [colorWallTarget, setColorWallTarget] = useState<"pen" | "bg">("pen");
   const [recentColors, setRecentColors] = useState<string[]>([]);
