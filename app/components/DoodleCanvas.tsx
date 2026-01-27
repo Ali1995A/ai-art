@@ -11,18 +11,24 @@ import {
 } from "react";
 
 type Point = { x: number; y: number };
-type Stroke = { points: Point[]; width: number; color: string };
+type StrokeMode = "draw" | "erase";
+type Stroke = { points: Point[]; width: number; color: string; mode: StrokeMode };
 
 export type DoodleCanvasHandle = {
   clear: () => void;
   undo: () => void;
   exportPngDataUrl: (maxSize: number) => string;
   hasInk: () => boolean;
+  hasBackground: () => boolean;
+  setBackgroundImage: (dataUrl: string | null) => void;
 };
 
 type Props = {
   className?: string;
   onInkChange?: (hasInk: boolean) => void;
+  color: string;
+  brushSize: number; // css px
+  tool: "pen" | "eraser";
 };
 
 function clamp(v: number, min: number, max: number) {
@@ -65,7 +71,9 @@ function drawStroke(
 ) {
   const points = stroke.points;
   if (points.length === 0) return;
-  ctx.strokeStyle = stroke.color;
+  ctx.globalCompositeOperation =
+    stroke.mode === "erase" ? "destination-out" : "source-over";
+  ctx.strokeStyle = stroke.mode === "erase" ? "rgba(0,0,0,1)" : stroke.color;
   ctx.lineWidth = stroke.width;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -76,9 +84,60 @@ function drawStroke(
     ctx.lineTo(points[i].x * size.w, points[i].y * size.h);
   }
   ctx.stroke();
+  ctx.globalCompositeOperation = "source-over";
 }
 
-function drawAll(
+function drawFrame(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  opts?: { drawFrame?: boolean },
+) {
+  if (!opts?.drawFrame) return;
+  ctx.save();
+  ctx.strokeStyle = "rgba(36, 26, 34, 0.08)";
+  ctx.lineWidth = Math.max(2, Math.round(Math.min(w, h) * 0.006));
+  roundRectPath(
+    ctx,
+    ctx.lineWidth,
+    ctx.lineWidth,
+    w - ctx.lineWidth * 2,
+    h - ctx.lineWidth * 2,
+    Math.round(Math.min(w, h) * 0.05),
+  );
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawBackground(
+  canvas: HTMLCanvasElement,
+  bg: HTMLImageElement | null,
+  opts?: { drawFrame?: boolean },
+) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+
+  if (bg && bg.naturalWidth > 0 && bg.naturalHeight > 0) {
+    const iw = bg.naturalWidth;
+    const ih = bg.naturalHeight;
+    const scale = Math.min(w / iw, h / ih);
+    const dw = Math.round(iw * scale);
+    const dh = Math.round(ih * scale);
+    const dx = Math.round((w - dw) / 2);
+    const dy = Math.round((h - dh) / 2);
+    ctx.drawImage(bg, dx, dy, dw, dh);
+  }
+
+  drawFrame(ctx, w, h, opts);
+}
+
+function drawStrokesLayer(
   canvas: HTMLCanvasElement,
   strokes: Stroke[],
   opts?: { drawFrame?: boolean },
@@ -91,29 +150,21 @@ function drawAll(
 
   ctx.clearRect(0, 0, w, h);
 
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, w, h);
-
-  if (opts?.drawFrame) {
-    ctx.save();
-    ctx.strokeStyle = "rgba(36, 26, 34, 0.08)";
-    ctx.lineWidth = Math.max(2, Math.round(Math.min(w, h) * 0.006));
-    roundRectPath(ctx, ctx.lineWidth, ctx.lineWidth, w - ctx.lineWidth * 2, h - ctx.lineWidth * 2, Math.round(Math.min(w, h) * 0.05));
-    ctx.stroke();
-    ctx.restore();
-  }
-
   for (const s of strokes) drawStroke(ctx, s, { w, h });
+  drawFrame(ctx, w, h, opts);
 }
 
 const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas(
-  { className, onInkChange },
+  { className, onInkChange, color, brushSize, tool },
   ref,
 ) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const bgCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const drawCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const strokesRef = useRef<Stroke[]>([]);
+  const backgroundRef = useRef<HTMLImageElement | null>(null);
+  const [hasBackground, setHasBackground] = useState(false);
   const drawingRef = useRef(false);
   const currentStrokeRef = useRef<Stroke | null>(null);
   const dpr = useMemo(() => (typeof window === "undefined" ? 1 : window.devicePixelRatio || 1), []);
@@ -128,9 +179,10 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
   );
 
   const resizeCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
+    const bgCanvas = bgCanvasRef.current;
+    const drawCanvas = drawCanvasRef.current;
     const container = containerRef.current;
-    if (!canvas || !container) return;
+    if (!bgCanvas || !drawCanvas || !container) return;
 
     const rect = container.getBoundingClientRect();
     const cssW = Math.max(1, Math.floor(rect.width));
@@ -138,14 +190,17 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
 
     const nextW = Math.floor(cssW * dpr);
     const nextH = Math.floor(cssH * dpr);
-    if (canvas.width === nextW && canvas.height === nextH) return;
+    if (bgCanvas.width === nextW && bgCanvas.height === nextH) return;
 
-    canvas.width = nextW;
-    canvas.height = nextH;
-    canvas.style.width = `${cssW}px`;
-    canvas.style.height = `${cssH}px`;
+    for (const c of [bgCanvas, drawCanvas]) {
+      c.width = nextW;
+      c.height = nextH;
+      c.style.width = `${cssW}px`;
+      c.style.height = `${cssH}px`;
+    }
 
-    drawAll(canvas, strokesRef.current, { drawFrame: true });
+    drawBackground(bgCanvas, backgroundRef.current, { drawFrame: true });
+    drawStrokesLayer(drawCanvas, strokesRef.current, { drawFrame: true });
   }, [dpr]);
 
   useEffect(() => {
@@ -156,24 +211,28 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
   }, [resizeCanvas]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    drawAll(canvas, strokes, { drawFrame: true });
+    const drawCanvas = drawCanvasRef.current;
+    if (!drawCanvas) return;
+    drawStrokesLayer(drawCanvas, strokes, { drawFrame: true });
   }, [strokes]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  const canvas = drawCanvasRef.current;
+  const bgCanvas = bgCanvasRef.current;
+  if (!canvas || !bgCanvas) return;
 
+    const prevent = (event: PointerEvent) => event.preventDefault();
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 0 && event.pointerType === "mouse") return;
       event.preventDefault();
       canvas.setPointerCapture(event.pointerId);
       drawingRef.current = true;
+      const width = Math.max(2, Math.round(brushSize * dpr));
       currentStrokeRef.current = {
         points: [getPointFromEvent(event, canvas)],
-        width: Math.max(8, Math.round(Math.min(canvas.width, canvas.height) * 0.02)),
-        color: "#121212",
+        width,
+        color,
+        mode: tool === "eraser" ? "erase" : "draw",
       };
     };
 
@@ -182,7 +241,7 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
       const stroke = currentStrokeRef.current;
       if (!stroke) return;
       stroke.points.push(getPointFromEvent(event, canvas));
-      drawAll(canvas, [...strokesRef.current, stroke], { drawFrame: true });
+      drawStrokesLayer(canvas, [...strokesRef.current, stroke], { drawFrame: true });
     };
 
     const endStroke = (event: PointerEvent) => {
@@ -201,14 +260,16 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
     canvas.addEventListener("pointermove", onPointerMove, { passive: false });
     canvas.addEventListener("pointerup", endStroke, { passive: false });
     canvas.addEventListener("pointercancel", endStroke, { passive: false });
+    canvas.addEventListener("contextmenu", prevent, { passive: false });
 
     return () => {
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);
       canvas.removeEventListener("pointerup", endStroke);
       canvas.removeEventListener("pointercancel", endStroke);
+      canvas.removeEventListener("contextmenu", prevent);
     };
-  }, [commitStrokes]);
+  }, [brushSize, color, commitStrokes, dpr, tool]);
 
   useImperativeHandle(
     ref,
@@ -216,13 +277,33 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
       clear: () => commitStrokes([]),
       undo: () => commitStrokes(strokesRef.current.slice(0, -1)),
       hasInk: () => strokesRef.current.length > 0,
+      hasBackground: () => hasBackground,
+      setBackgroundImage: (dataUrl: string | null) => {
+        if (!dataUrl) {
+          backgroundRef.current = null;
+          setHasBackground(false);
+          const bgCanvas = bgCanvasRef.current;
+          if (bgCanvas) drawBackground(bgCanvas, null, { drawFrame: true });
+          return;
+        }
+
+        const img = new Image();
+        img.onload = () => {
+          backgroundRef.current = img;
+          setHasBackground(true);
+          const bgCanvas = bgCanvasRef.current;
+          if (bgCanvas) drawBackground(bgCanvas, img, { drawFrame: true });
+        };
+        img.src = dataUrl;
+      },
       exportPngDataUrl: (maxSize: number) => {
-        const source = canvasRef.current;
-        if (!source) return "";
+        const bgCanvas = bgCanvasRef.current;
+        const drawCanvas = drawCanvasRef.current;
+        if (!bgCanvas || !drawCanvas) return "";
 
         const out = document.createElement("canvas");
-        const w = source.width;
-        const h = source.height;
+        const w = bgCanvas.width;
+        const h = bgCanvas.height;
         const scale = Math.min(1, maxSize / Math.max(w, h));
         out.width = Math.max(1, Math.round(w * scale));
         out.height = Math.max(1, Math.round(h * scale));
@@ -232,11 +313,12 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
 
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = "high";
-        ctx.drawImage(source, 0, 0, out.width, out.height);
+        ctx.drawImage(bgCanvas, 0, 0, out.width, out.height);
+        ctx.drawImage(drawCanvas, 0, 0, out.width, out.height);
         return out.toDataURL("image/png");
       },
     }),
-    [commitStrokes],
+    [commitStrokes, hasBackground],
   );
 
   return (
@@ -247,16 +329,31 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
         touchAction: "none",
         userSelect: "none",
         WebkitUserSelect: "none",
+        position: "relative",
       }}
     >
       <canvas
-        ref={canvasRef}
+        ref={bgCanvasRef}
+        aria-hidden
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "block",
+          position: "absolute",
+          inset: 0,
+          borderRadius: 24,
+        }}
+      />
+      <canvas
+        ref={drawCanvasRef}
         role="img"
         aria-label="Doodle canvas"
         style={{
           width: "100%",
           height: "100%",
           display: "block",
+          position: "absolute",
+          inset: 0,
           touchAction: "none",
           borderRadius: 24,
         }}
@@ -266,4 +363,3 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
 });
 
 export default DoodleCanvas;
-

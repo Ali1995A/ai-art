@@ -4,9 +4,10 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DoodleCanvas, { type DoodleCanvasHandle } from "./DoodleCanvas";
 import {
+  DownloadIcon,
   HeartIcon,
+  PhotoIcon,
   SparkleIcon,
-  TrashIcon,
   UndoIcon,
   WandIcon,
 } from "./icons";
@@ -19,6 +20,9 @@ type StyleOption = {
   icon: ReactNode;
   ariaLabel: string;
   promptHint: string;
+  labelZh: string;
+  labelPy: string;
+  labelEn: string;
 };
 
 type GenerateResponse =
@@ -30,11 +34,16 @@ const DEFAULT_BASE_PROMPT =
 
 export default function DoodleApp() {
   const canvasRef = useRef<DoodleCanvasHandle | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [hasInk, setHasInk] = useState(false);
+  const [hasBackground, setHasBackground] = useState(false);
   const [styleId, setStyleId] = useState<StyleId>("cute");
   const [isGenerating, setIsGenerating] = useState(false);
   const [imageDataUrl, setImageDataUrl] = useState<string>("");
   const [error, setError] = useState<string>("");
+  const [tool, setTool] = useState<"pen" | "eraser">("pen");
+  const [brushSize, setBrushSize] = useState(12);
+  const [color, setColor] = useState("#121212");
 
   const styles = useMemo<StyleOption[]>(
     () => [
@@ -43,6 +52,9 @@ export default function DoodleApp() {
         color: "linear-gradient(135deg, #ffd1e6 0%, #b3e5ff 100%)",
         icon: <HeartIcon className="h-7 w-7" />,
         ariaLabel: "Cute style",
+        labelZh: "可爱",
+        labelPy: "ke ai",
+        labelEn: "Cute",
         promptHint:
           "cute pastel kid illustration, soft shading, friendly face, gentle colors",
       },
@@ -51,6 +63,9 @@ export default function DoodleApp() {
         color: "linear-gradient(135deg, #ffe7a8 0%, #ffd1e6 100%)",
         icon: <SparkleIcon className="h-7 w-7" />,
         ariaLabel: "Sticker style",
+        labelZh: "贴纸",
+        labelPy: "tie zhi",
+        labelEn: "Sticker",
         promptHint:
           "sticker style, bold outline, flat colors, simple shapes, high contrast, clean",
       },
@@ -59,6 +74,9 @@ export default function DoodleApp() {
         color: "linear-gradient(135deg, #c8ffe1 0%, #d6c8ff 100%)",
         icon: <SparkleIcon className="h-7 w-7" />,
         ariaLabel: "Watercolor style",
+        labelZh: "水彩",
+        labelPy: "shui cai",
+        labelEn: "Watercolor",
         promptHint:
           "watercolor, paper texture, soft edges, light washes, dreamy, child-friendly",
       },
@@ -67,6 +85,9 @@ export default function DoodleApp() {
         color: "linear-gradient(135deg, #b3e5ff 0%, #ffd1e6 100%)",
         icon: <WandIcon className="h-7 w-7" />,
         ariaLabel: "Storybook style",
+        labelZh: "绘本",
+        labelPy: "hui ben",
+        labelEn: "Storybook",
         promptHint:
           "storybook illustration, warm lighting, gentle outlines, cute, cozy, simple background",
       },
@@ -97,32 +118,84 @@ export default function DoodleApp() {
     };
   }, []);
 
-  const clear = useCallback(() => {
-    setError("");
-    canvasRef.current?.clear();
-  }, []);
-
   const undo = useCallback(() => {
     setError("");
     canvasRef.current?.undo();
   }, []);
 
+  const openAlbum = useCallback(() => {
+    setError("");
+    fileInputRef.current?.click();
+  }, []);
+
+  const onPickImage = useCallback(async () => {
+    const input = fileInputRef.current;
+    const file = input?.files?.[0];
+    if (!file) return;
+    input.value = "";
+
+    const reader = new FileReader();
+    const dataUrl: string = await new Promise((resolve, reject) => {
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Load image failed"));
+      reader.readAsDataURL(file);
+    });
+
+    canvasRef.current?.setBackgroundImage(dataUrl);
+    setHasBackground(true);
+  }, []);
+
+  const downloadDataUrl = useCallback((dataUrl: string, filename: string) => {
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = filename;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }, []);
+
+  const downloadUrlAsFile = useCallback(async (url: string, filename: string) => {
+    try {
+      const res = await fetch(url, { mode: "cors" });
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      downloadDataUrl(objUrl, filename);
+      setTimeout(() => URL.revokeObjectURL(objUrl), 30_000);
+    } catch {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  }, [downloadDataUrl]);
+
+  const saveToAlbum = useCallback(async () => {
+    setError("");
+    const doodle = canvasRef.current?.exportPngDataUrl(2048) ?? "";
+    if (doodle) downloadDataUrl(doodle, "doodle.png");
+    if (!imageDataUrl) return;
+    if (imageDataUrl.startsWith("data:")) {
+      setTimeout(() => downloadDataUrl(imageDataUrl, "ai.png"), 250);
+      return;
+    }
+    setTimeout(() => {
+      void downloadUrlAsFile(imageDataUrl, "ai.png");
+    }, 250);
+  }, [downloadDataUrl, downloadUrlAsFile, imageDataUrl]);
+
   const generate = useCallback(async () => {
     setError("");
     setIsGenerating(true);
     try {
-      const doodle = canvasRef.current?.exportPngDataUrl(512) ?? "";
+      const doodle = canvasRef.current?.exportPngDataUrl(2048) ?? "";
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            mode: doodle ? "img2img" : "txt2img",
-            prompt: DEFAULT_BASE_PROMPT,
-            stylePrompt: selectedStyle.promptHint,
-            imageDataUrl: doodle || undefined,
-            size: "512x512",
-            quality: "fast",
-          }),
+        body: JSON.stringify({
+          mode: doodle ? "img2img" : "txt2img",
+          prompt: DEFAULT_BASE_PROMPT,
+          stylePrompt: selectedStyle.promptHint,
+          imageDataUrl: doodle || undefined,
+          quality: "fast",
+        }),
       });
 
       const json = (await res.json()) as GenerateResponse;
@@ -165,67 +238,139 @@ export default function DoodleApp() {
               Pink Doodle AI
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="kid-button h-11 w-11 inline-flex items-center justify-center"
-              onClick={undo}
-              aria-label="Undo"
-              disabled={!hasInk || isGenerating}
-              style={{
-                opacity: !hasInk || isGenerating ? 0.5 : 1,
-              }}
-            >
-              <UndoIcon className="h-6 w-6" />
-            </button>
-            <button
-              type="button"
-              className="kid-button h-11 w-11 inline-flex items-center justify-center"
-              onClick={clear}
-              aria-label="Clear"
-              disabled={!hasInk || isGenerating}
-              style={{
-                opacity: !hasInk || isGenerating ? 0.5 : 1,
-              }}
-            >
-              <TrashIcon className="h-6 w-6" />
-            </button>
-          </div>
         </div>
 
         <div
           className="split-layout"
         >
           <div className="glass-card flex-1 p-3">
-            <div className="flex items-center justify-between px-1 pb-2">
-              <div className="text-xs font-semibold opacity-70"> </div>
+            <div className="flex items-center justify-between gap-2 px-1 pb-2">
               <div className="flex items-center gap-2">
-                {styles.map((s) => {
-                  const selected = s.id === styleId;
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      className="kid-button inline-flex items-center justify-center"
-                      onClick={() => setStyleId(s.id)}
-                      aria-label={s.ariaLabel}
-                      style={{
-                        width: 54,
-                        height: 54,
-                        background: s.color,
-                        color: "rgba(36, 26, 34, 0.9)",
-                        border: selected
-                          ? "2px solid rgba(255, 79, 160, 0.9)"
-                          : "1px solid rgba(36, 26, 34, 0.10)",
-                        transform: selected ? "scale(1.02)" : "scale(1)",
-                      }}
-                      disabled={isGenerating}
-                    >
-                      {s.icon}
-                    </button>
-                  );
-                })}
+                <button
+                  type="button"
+                  className="kid-button inline-flex items-center justify-center px-3"
+                  onClick={openAlbum}
+                  aria-label="Open album"
+                  disabled={isGenerating}
+                  style={{ height: 46, opacity: isGenerating ? 0.6 : 1 }}
+                >
+                  <PhotoIcon className="h-6 w-6 mr-2" />
+                  <span className="flex flex-col leading-tight text-[11px] font-semibold">
+                    <span>相册</span>
+                    <span className="opacity-70">xiang ce</span>
+                    <span className="opacity-70">Album</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="kid-button h-[46px] w-[46px] inline-flex items-center justify-center"
+                  onClick={undo}
+                  aria-label="Undo"
+                  disabled={!hasInk || isGenerating}
+                  style={{ opacity: !hasInk || isGenerating ? 0.5 : 1 }}
+                >
+                  <UndoIcon className="h-6 w-6" />
+                </button>
+                <button
+                  type="button"
+                  className="kid-button h-[46px] w-[46px] inline-flex items-center justify-center"
+                  onClick={() => {
+                    setTool((t) => (t === "eraser" ? "pen" : "eraser"));
+                  }}
+                  aria-label="Eraser"
+                  disabled={isGenerating}
+                  style={{
+                    opacity: isGenerating ? 0.6 : 1,
+                    border:
+                      tool === "eraser"
+                        ? "2px solid rgba(255, 79, 160, 0.9)"
+                        : "1px solid rgba(36, 26, 34, 0.10)",
+                  }}
+                >
+                  <span className="flex flex-col leading-tight text-[11px] font-semibold">
+                    <span>橡皮</span>
+                    <span className="opacity-70">xiang pi</span>
+                    <span className="opacity-70">Eraser</span>
+                  </span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
+                  {[
+                    "#121212",
+                    "#ff4fa0",
+                    "#9b5cff",
+                    "#2bb3ff",
+                    "#2bd38f",
+                    "#ffd74a",
+                    "#ff7a2f",
+                    "#ffffff",
+                  ].map((c) => {
+                    const selected = color === c && tool === "pen";
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        className="kid-button"
+                        onClick={() => {
+                          setTool("pen");
+                          setColor(c);
+                        }}
+                        aria-label="Color"
+                        disabled={isGenerating}
+                        style={{
+                          width: 30,
+                          height: 30,
+                          padding: 0,
+                          borderRadius: 999,
+                          background: c,
+                          border: selected
+                            ? "2px solid rgba(255, 79, 160, 0.9)"
+                            : "1px solid rgba(36, 26, 34, 0.12)",
+                          boxShadow:
+                            c === "#ffffff"
+                              ? "inset 0 0 0 2px rgba(36, 26, 34, 0.12)"
+                              : undefined,
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {[8, 12, 16, 22].map((s) => {
+                    const selected = brushSize === s;
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        className="kid-button inline-flex items-center justify-center"
+                        onClick={() => setBrushSize(s)}
+                        aria-label="Brush size"
+                        disabled={isGenerating}
+                        style={{
+                          width: 40,
+                          height: 40,
+                          border: selected
+                            ? "2px solid rgba(255, 79, 160, 0.9)"
+                            : "1px solid rgba(36, 26, 34, 0.10)",
+                          opacity: isGenerating ? 0.7 : 1,
+                        }}
+                      >
+                        <span
+                          aria-hidden
+                          style={{
+                            width: s,
+                            height: s,
+                            borderRadius: 999,
+                            background: "rgba(36, 26, 34, 0.92)",
+                          }}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
@@ -233,29 +378,112 @@ export default function DoodleApp() {
               ref={canvasRef}
               className="doodle-canvas-shell"
               onInkChange={setHasInk}
+              color={color}
+              brushSize={brushSize}
+              tool={tool}
+            />
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={() => void onPickImage()}
             />
           </div>
 
           <div className="glass-card flex-1 p-3 flex flex-col">
             <div className="flex items-center justify-between px-1 pb-2">
-              <div className="text-xs font-semibold opacity-70"> </div>
-              <button
-                type="button"
-                className="kid-button inline-flex items-center justify-center gap-2 px-4"
-                onClick={generate}
-                aria-label="Make a picture"
-                disabled={isGenerating}
-                style={{
-                  height: 54,
-                  background:
-                    "linear-gradient(135deg, var(--pink-300) 0%, var(--purple-600) 100%)",
-                  color: "rgba(36, 26, 34, 0.92)",
-                  border: "1px solid rgba(36, 26, 34, 0.10)",
-                }}
-              >
-                <WandIcon className="h-6 w-6" />
-                <span className="sr-only">Generate</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {styles.map((s) => {
+                  const selected = s.id === styleId;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      className="kid-button inline-flex items-center gap-2 px-3"
+                      onClick={() => setStyleId(s.id)}
+                      aria-label={s.ariaLabel}
+                      disabled={isGenerating}
+                      style={{
+                        height: 58,
+                        background: s.color,
+                        color: "rgba(36, 26, 34, 0.92)",
+                        border: selected
+                          ? "2px solid rgba(255, 79, 160, 0.9)"
+                          : "1px solid rgba(36, 26, 34, 0.10)",
+                        opacity: isGenerating ? 0.7 : 1,
+                      }}
+                    >
+                      <span className="inline-flex items-center justify-center">
+                        {s.icon}
+                      </span>
+                      <span className="flex flex-col leading-tight text-left">
+                        <span className="text-[13px] font-extrabold">
+                          {s.labelZh}
+                        </span>
+                        <span className="text-[11px] font-semibold opacity-75">
+                          {s.labelPy}
+                        </span>
+                        <span className="text-[11px] font-semibold opacity-75">
+                          {s.labelEn}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="kid-button inline-flex items-center justify-center gap-2 px-4"
+                  onClick={generate}
+                  aria-label="Generate"
+                  disabled={isGenerating || (!hasInk && !hasBackground)}
+                  style={{
+                    height: 58,
+                    background:
+                      "linear-gradient(135deg, var(--pink-300) 0%, var(--purple-600) 100%)",
+                    color: "rgba(36, 26, 34, 0.92)",
+                    border: "1px solid rgba(36, 26, 34, 0.10)",
+                    opacity:
+                      isGenerating || (!hasInk && !hasBackground) ? 0.55 : 1,
+                  }}
+                >
+                  <WandIcon className="h-6 w-6" />
+                  <span className="flex flex-col leading-tight text-[11px] font-semibold">
+                    <span>生成</span>
+                    <span className="opacity-70">sheng cheng</span>
+                    <span className="opacity-70">Generate</span>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className="kid-button inline-flex items-center justify-center gap-2 px-4"
+                  onClick={saveToAlbum}
+                  aria-label="Save"
+                  disabled={isGenerating || (!hasInk && !hasBackground && !imageDataUrl)}
+                  style={{
+                    height: 58,
+                    background:
+                      "linear-gradient(135deg, #c8ffe1 0%, #ffd1e6 100%)",
+                    color: "rgba(36, 26, 34, 0.92)",
+                    border: "1px solid rgba(36, 26, 34, 0.10)",
+                    opacity:
+                      isGenerating || (!hasInk && !hasBackground && !imageDataUrl)
+                        ? 0.55
+                        : 1,
+                  }}
+                >
+                  <DownloadIcon className="h-6 w-6" />
+                  <span className="flex flex-col leading-tight text-[11px] font-semibold">
+                    <span>保存</span>
+                    <span className="opacity-70">bao cun</span>
+                    <span className="opacity-70">Save</span>
+                  </span>
+                </button>
+              </div>
             </div>
 
             <div className="relative flex-1 overflow-hidden rounded-2xl border border-[color:var(--card-border)] bg-white/70 dark:bg-black/20">
