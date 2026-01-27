@@ -294,10 +294,9 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
 
     const onTouchStart = (event: TouchEvent) => {
       if (drawingRef.current) return;
-      if (!event.cancelable) return;
       const t = event.touches[0];
       if (!t) return;
-      event.preventDefault();
+      if (event.cancelable) event.preventDefault();
       touchDrawingRef.current = true;
       const width = Math.max(2, Math.round(brushSize * dpr));
       currentStrokeRef.current = {
@@ -310,10 +309,9 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
 
     const onTouchMove = (event: TouchEvent) => {
       if (!touchDrawingRef.current) return;
-      if (!event.cancelable) return;
       const t = event.touches[0];
       if (!t) return;
-      event.preventDefault();
+      if (event.cancelable) event.preventDefault();
       const stroke = currentStrokeRef.current;
       if (!stroke) return;
       stroke.points.push(getPointFromTouch(t, canvas));
@@ -505,6 +503,7 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
           position: "absolute",
           inset: 0,
           touchAction: "none",
+          pointerEvents: "auto",
           cursor: "crosshair",
           borderRadius: 24,
         }}
