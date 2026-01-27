@@ -121,6 +121,17 @@ async function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
+function dataUrlToBlob(dataUrl: string): Blob {
+  const match = /^data:(.+?);base64,(.+)$/.exec(dataUrl);
+  if (!match) throw new Error("Invalid image data");
+  const mime = match[1] || "application/octet-stream";
+  const b64 = match[2] || "";
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
 type WatermarkSpec = {
   creator: string;
   date: string;
@@ -683,39 +694,65 @@ export default function DoodleApp() {
     a.remove();
   }, []);
 
+  const shareFilesIfPossible = useCallback(
+    async (files: File[], title: string) => {
+      const nav = navigator as unknown as {
+        canShare?: (data: { files: File[] }) => boolean;
+        share?: (data: { files: File[]; title?: string; text?: string }) => Promise<void>;
+      };
+      if (!nav.share) return false;
+      if (nav.canShare && !nav.canShare({ files })) return false;
+
+      try {
+        await nav.share({ files, title, text: title });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [],
+  );
+
   const saveToAlbum = useCallback(async () => {
     setError("");
     const spec: WatermarkSpec = { creator: "CC", date: dateStampLocal() };
 
     const doodle = canvasRef.current?.exportPngDataUrl(2048) ?? "";
+    const files: File[] = [];
+
     if (doodle) {
       const watermarked = await addWatermarkToDataUrl(doodle, spec);
-      downloadDataUrl(watermarked, `doodle_${spec.date}_CC.png`);
+      const blob = dataUrlToBlob(watermarked);
+      files.push(new File([blob], `doodle_${spec.date}_CC.png`, { type: "image/png" }));
     }
 
-    if (!imageDataUrl) return;
-    if (imageDataUrl.startsWith("data:")) {
-      const watermarked = await addWatermarkToDataUrl(imageDataUrl, spec);
-      setTimeout(
-        () => downloadDataUrl(watermarked, `ai_${spec.date}_CC.png`),
-        250,
-      );
-      return;
+    if (imageDataUrl) {
+      let aiDataUrl = imageDataUrl;
+      if (!aiDataUrl.startsWith("data:")) {
+        const res = await fetch(aiDataUrl, { mode: "cors" });
+        const blob = await res.blob();
+        aiDataUrl = await blobToDataUrl(blob);
+      }
+      const watermarked = await addWatermarkToDataUrl(aiDataUrl, spec);
+      const blob = dataUrlToBlob(watermarked);
+      files.push(new File([blob], `ai_${spec.date}_CC.png`, { type: "image/png" }));
     }
 
-    try {
-      const res = await fetch(imageDataUrl, { mode: "cors" });
-      const blob = await res.blob();
-      const dataUrl = await blobToDataUrl(blob);
-      const watermarked = await addWatermarkToDataUrl(dataUrl, spec);
-      setTimeout(
-        () => downloadDataUrl(watermarked, `ai_${spec.date}_CC.png`),
-        250,
-      );
-    } catch {
-      window.open(imageDataUrl, "_blank", "noopener,noreferrer");
+    // Best-effort iPad/iOS UX: Share Sheet -> user can "Save Image" to Photos.
+    const shared = files.length
+      ? await shareFilesIfPossible(files, `Pink Doodle AI ${spec.date}`)
+      : false;
+
+    if (shared) return;
+
+    // Fallback: download (may go to Files on iOS; still works on desktop).
+    for (const f of files) {
+      const url = URL.createObjectURL(f);
+      downloadDataUrl(url, f.name);
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+      await new Promise((r) => setTimeout(r, 250));
     }
-  }, [downloadDataUrl, imageDataUrl]);
+  }, [downloadDataUrl, imageDataUrl, shareFilesIfPossible]);
 
   const clearAll = useCallback(() => {
     setError("");
