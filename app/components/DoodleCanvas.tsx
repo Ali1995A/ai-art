@@ -66,6 +66,14 @@ function getPointFromEvent(
   };
 }
 
+function getPointFromTouch(touch: Touch, canvas: HTMLCanvasElement): Point {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (touch.clientX - rect.left) / rect.width,
+    y: (touch.clientY - rect.top) / rect.height,
+  };
+}
+
 function drawStroke(
   ctx: CanvasRenderingContext2D,
   stroke: Stroke,
@@ -170,6 +178,7 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
   const [hasBackground, setHasBackground] = useState(false);
   const backgroundColorRef = useRef<string>(backgroundColor || "#ffffff");
   const drawingRef = useRef(false);
+  const touchDrawingRef = useRef(false);
   const currentStrokeRef = useRef<Stroke | null>(null);
   const dpr = useMemo(() => (typeof window === "undefined" ? 1 : window.devicePixelRatio || 1), []);
 
@@ -223,9 +232,9 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
   }, [strokes]);
 
   useEffect(() => {
-  const canvas = drawCanvasRef.current;
-  const bgCanvas = bgCanvasRef.current;
-  if (!canvas || !bgCanvas) return;
+    const canvas = drawCanvasRef.current;
+    const bgCanvas = bgCanvasRef.current;
+    if (!canvas || !bgCanvas) return;
 
     const prevent = (event: PointerEvent) => event.preventDefault();
     const onPointerDown = (event: PointerEvent) => {
@@ -233,6 +242,7 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
       event.preventDefault();
       canvas.setPointerCapture(event.pointerId);
       drawingRef.current = true;
+      touchDrawingRef.current = false;
       const width = Math.max(2, Math.round(brushSize * dpr));
       currentStrokeRef.current = {
         points: [getPointFromEvent(event, canvas)],
@@ -268,12 +278,61 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
     canvas.addEventListener("pointercancel", endStroke, { passive: false });
     canvas.addEventListener("contextmenu", prevent, { passive: false });
 
+    const onTouchStart = (event: TouchEvent) => {
+      if (drawingRef.current) return;
+      if (!event.cancelable) return;
+      const t = event.touches[0];
+      if (!t) return;
+      event.preventDefault();
+      touchDrawingRef.current = true;
+      const width = Math.max(2, Math.round(brushSize * dpr));
+      currentStrokeRef.current = {
+        points: [getPointFromTouch(t, canvas)],
+        width,
+        color,
+        mode: tool === "eraser" ? "erase" : "draw",
+      };
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (!touchDrawingRef.current) return;
+      if (!event.cancelable) return;
+      const t = event.touches[0];
+      if (!t) return;
+      event.preventDefault();
+      const stroke = currentStrokeRef.current;
+      if (!stroke) return;
+      stroke.points.push(getPointFromTouch(t, canvas));
+      drawStrokesLayer(canvas, [...strokesRef.current, stroke], {
+        drawFrame: true,
+      });
+    };
+
+    const onTouchEnd = (event: TouchEvent) => {
+      if (!touchDrawingRef.current) return;
+      if (event.cancelable) event.preventDefault();
+      touchDrawingRef.current = false;
+      const stroke = currentStrokeRef.current;
+      currentStrokeRef.current = null;
+      if (!stroke || stroke.points.length < 1) return;
+      commitStrokes([...strokesRef.current, stroke]);
+    };
+
+    canvas.addEventListener("touchstart", onTouchStart, { passive: false });
+    canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+    canvas.addEventListener("touchend", onTouchEnd, { passive: false });
+    canvas.addEventListener("touchcancel", onTouchEnd, { passive: false });
+
     return () => {
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);
       canvas.removeEventListener("pointerup", endStroke);
       canvas.removeEventListener("pointercancel", endStroke);
       canvas.removeEventListener("contextmenu", prevent);
+      canvas.removeEventListener("touchstart", onTouchStart);
+      canvas.removeEventListener("touchmove", onTouchMove);
+      canvas.removeEventListener("touchend", onTouchEnd);
+      canvas.removeEventListener("touchcancel", onTouchEnd);
     };
   }, [brushSize, color, commitStrokes, dpr, tool]);
 
