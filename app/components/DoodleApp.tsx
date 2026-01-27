@@ -92,7 +92,7 @@ export default function DoodleApp() {
   const [error, setError] = useState<string>("");
   const [tool, setTool] = useState<"pen" | "eraser">("pen");
   const [brushSize, setBrushSize] = useState(12);
-  const [color, setColor] = useState("#121212");
+  const [color, setColor] = useState("#9b5cff");
   const [isColorWallOpen, setIsColorWallOpen] = useState(false);
 
   const styles = useMemo<StyleOption[]>(
@@ -490,6 +490,7 @@ export default function DoodleApp() {
                           onClick={() => {
                             setTool("pen");
                             setColor(c);
+                            setIsColorWallOpen(false);
                           }}
                           disabled={isGenerating}
                         />
@@ -519,6 +520,7 @@ export default function DoodleApp() {
                         onClick={() => {
                           setTool("pen");
                           setColor(c);
+                          setIsColorWallOpen(false);
                         }}
                         disabled={isGenerating}
                       />
