@@ -331,14 +331,14 @@ export default function DoodleApp() {
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
-                  className="kid-button inline-flex items-center justify-center px-3"
+                  className="kid-button kid-btn-sm"
                   onClick={openAlbum}
                   aria-label="Open album"
                   disabled={isGenerating}
-                  style={{ height: 46, opacity: isGenerating ? 0.6 : 1 }}
+                  style={{ opacity: isGenerating ? 0.6 : 1 }}
                 >
-                  <PhotoIcon className="h-6 w-6 mr-2" />
-                  <span className="flex flex-col leading-tight text-[11px] font-semibold">
+                  <PhotoIcon className="kid-icon shrink-0" />
+                  <span className="kid-label">
                     <span className="label-line">相册</span>
                     <span className="label-line pinyin-text opacity-75">
                       xiàng cè
@@ -348,17 +348,21 @@ export default function DoodleApp() {
                 </button>
                 <button
                   type="button"
-                  className="kid-button h-[46px] w-[46px] inline-flex items-center justify-center"
+                  className="kid-button kid-btn-icon"
                   onClick={undo}
                   aria-label="Undo"
                   disabled={!hasInk || isGenerating}
                   style={{ opacity: !hasInk || isGenerating ? 0.5 : 1 }}
                 >
-                  <UndoIcon className="h-6 w-6" />
+                  <UndoIcon className="kid-icon" />
                 </button>
                 <button
                   type="button"
-                  className="kid-button h-[46px] w-[46px] inline-flex items-center justify-center"
+                  className={[
+                    "kid-button",
+                    "kid-btn-sm",
+                    tool === "eraser" ? "kid-btn-selected" : "",
+                  ].join(" ")}
                   onClick={() => {
                     setTool((t) => (t === "eraser" ? "pen" : "eraser"));
                   }}
@@ -366,13 +370,9 @@ export default function DoodleApp() {
                   disabled={isGenerating}
                   style={{
                     opacity: isGenerating ? 0.6 : 1,
-                    border:
-                      tool === "eraser"
-                        ? "2px solid rgba(255, 79, 160, 0.9)"
-                        : "1px solid rgba(36, 26, 34, 0.10)",
                   }}
                 >
-                  <span className="flex flex-col leading-tight text-[11px] font-semibold">
+                  <span className="kid-label">
                     <span className="label-line">橡皮</span>
                     <span className="label-line pinyin-text opacity-75">
                       xiàng pí
@@ -386,20 +386,20 @@ export default function DoodleApp() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    className="kid-button inline-flex items-center justify-center px-3"
+                    className={[
+                      "kid-button",
+                      "kid-btn-sm",
+                      isColorWallOpen ? "kid-btn-selected" : "",
+                    ].join(" ")}
                     onClick={() => setIsColorWallOpen((v) => !v)}
                     aria-label="Color palette"
                     disabled={isGenerating}
                     style={{
-                      height: 46,
                       opacity: isGenerating ? 0.7 : 1,
-                      border: isColorWallOpen
-                        ? "2px solid rgba(255, 79, 160, 0.9)"
-                        : "1px solid rgba(36, 26, 34, 0.10)",
                     }}
                   >
                     <span
-                      className="inline-block mr-2"
+                      className="inline-block"
                       aria-hidden
                       style={{
                         width: 18,
@@ -413,7 +413,7 @@ export default function DoodleApp() {
                             : undefined,
                       }}
                     />
-                    <span className="flex flex-col leading-tight text-[11px] font-semibold">
+                    <span className="kid-label">
                       <span className="label-line">颜色</span>
                       <span className="label-line pinyin-text opacity-75">
                         yán sè
@@ -555,17 +555,18 @@ export default function DoodleApp() {
                     <button
                       key={s.id}
                       type="button"
-                      className="kid-button inline-flex items-center gap-2 px-3 shrink-0"
+                      className={[
+                        "kid-button",
+                        "kid-btn-md",
+                        "shrink-0",
+                        selected ? "kid-btn-selected" : "",
+                      ].join(" ")}
                       onClick={() => setStyleId(s.id)}
                       aria-label={s.ariaLabel}
                       disabled={isGenerating}
                       style={{
-                        height: 58,
                         background: s.color,
                         color: "rgba(36, 26, 34, 0.92)",
-                        border: selected
-                          ? "2px solid rgba(255, 79, 160, 0.9)"
-                          : "1px solid rgba(36, 26, 34, 0.10)",
                         opacity: isGenerating ? 0.7 : 1,
                       }}
                     >
@@ -590,12 +591,11 @@ export default function DoodleApp() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  className="kid-button inline-flex items-center justify-center gap-2 px-4"
+                  className="kid-button kid-btn-md"
                   onClick={generate}
                   aria-label="Generate"
                   disabled={isGenerating || (!hasInk && !hasBackground)}
                   style={{
-                    height: 58,
                     background:
                       "linear-gradient(135deg, var(--pink-300) 0%, var(--purple-600) 100%)",
                     color: "rgba(36, 26, 34, 0.92)",
@@ -604,8 +604,8 @@ export default function DoodleApp() {
                       isGenerating || (!hasInk && !hasBackground) ? 0.55 : 1,
                   }}
                 >
-                  <WandIcon className="h-6 w-6" />
-                  <span className="flex flex-col leading-tight text-[11px] font-semibold">
+                  <WandIcon className="kid-icon shrink-0" />
+                  <span className="kid-label">
                     <span className="label-line">生成</span>
                     <span className="label-line pinyin-text opacity-75">
                       shēng chéng
@@ -618,12 +618,11 @@ export default function DoodleApp() {
 
                 <button
                   type="button"
-                  className="kid-button inline-flex items-center justify-center gap-2 px-4"
+                  className="kid-button kid-btn-md"
                   onClick={saveToAlbum}
                   aria-label="Save"
                   disabled={isGenerating || (!hasInk && !hasBackground && !imageDataUrl)}
                   style={{
-                    height: 58,
                     background:
                       "linear-gradient(135deg, #c8ffe1 0%, #ffd1e6 100%)",
                     color: "rgba(36, 26, 34, 0.92)",
@@ -634,8 +633,8 @@ export default function DoodleApp() {
                         : 1,
                   }}
                 >
-                  <DownloadIcon className="h-6 w-6" />
-                  <span className="flex flex-col leading-tight text-[11px] font-semibold">
+                  <DownloadIcon className="kid-icon shrink-0" />
+                  <span className="kid-label">
                     <span className="label-line">保存</span>
                     <span className="label-line pinyin-text opacity-75">
                       bǎo cún

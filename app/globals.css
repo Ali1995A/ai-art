@@ -72,10 +72,53 @@ body {
 }
 
 .kid-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   border-radius: 9999px;
   border: 1px solid var(--card-border);
   background: rgba(255, 255, 255, 0.85);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+  color: var(--foreground);
+  font-weight: 700;
+}
+
+.kid-button:disabled {
+  cursor: not-allowed;
+}
+
+.kid-btn-sm {
+  height: 46px;
+  padding: 0 12px;
+}
+
+.kid-btn-md {
+  height: 58px;
+  padding: 0 14px;
+}
+
+.kid-btn-icon {
+  width: 46px;
+  height: 46px;
+  padding: 0;
+}
+
+.kid-btn-selected {
+  border: 2px solid rgba(255, 79, 160, 0.92);
+}
+
+.kid-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.kid-label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.05;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .pinyin-text {
