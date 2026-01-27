@@ -768,7 +768,7 @@ export default function DoodleApp() {
         >
           <div className="glass-card flex-1 p-3 flex flex-col">
             <div className="flex items-center justify-between gap-2 px-1 pb-2">
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="scroll-x no-scrollbar flex items-center gap-2 pr-2">
                 <button
                   type="button"
                   className="kid-button kid-btn-sm"
@@ -822,8 +822,8 @@ export default function DoodleApp() {
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap justify-end">
-                <div className="flex items-center gap-2">
+              <div className="scroll-x no-scrollbar flex items-center gap-2 justify-end pl-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
                     className={[
@@ -907,7 +907,7 @@ export default function DoodleApp() {
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <input
                     type="range"
                     min={4}
@@ -948,7 +948,10 @@ export default function DoodleApp() {
             </div>
 
             {isColorWallOpen ? (
-              <div className="mt-3 glass-card p-3">
+              <div
+                className="mt-3 glass-card p-3 scroll-y no-scrollbar"
+                style={{ maxHeight: "min(44vh, 420px)" }}
+              >
                 <div className="mb-3">
                   <div className="color-wall">
                     {grays16.map((c) => {
@@ -1072,7 +1075,7 @@ export default function DoodleApp() {
           </div>
 
           <div className="glass-card flex-1 p-3 flex flex-col">
-            <div className="flex items-center justify-between px-1 pb-2">
+            <div className="flex items-center justify-between px-1 pb-2 gap-2">
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pr-2">
                 {styles.map((s) => {
                   const selected = s.id === styleId;
@@ -1113,7 +1116,7 @@ export default function DoodleApp() {
                   );
                 })}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="scroll-x no-scrollbar flex items-center gap-2 shrink-0 pl-2">
                 <button
                   type="button"
                   className="kid-button kid-btn-md"
