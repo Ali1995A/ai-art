@@ -395,6 +395,16 @@ export default function DoodleApp() {
   const [colorWallTarget, setColorWallTarget] = useState<"pen" | "bg">("pen");
   const [recentColors, setRecentColors] = useState<string[]>([]);
 
+  type GenJob = {
+    requestedStyle: StyleId;
+    doodleDataUrl: string;
+    prompt: string;
+    createdAt: number;
+  };
+  const [jobQueue, setJobQueue] = useState<GenJob[]>([]);
+  const jobQueueRef = useRef<GenJob[]>([]);
+  const processingRef = useRef(false);
+
   const styles = useMemo<StyleOption[]>(
     () => [
       {
@@ -707,13 +717,13 @@ export default function DoodleApp() {
     }
   }, [downloadDataUrl, imageDataUrl]);
 
-  const generateWithStyle = useCallback(async (styleOverride?: StyleId) => {
+  const runJob = useCallback(async (job: GenJob) => {
     setError("");
     setIsGenerating(true);
     try {
-      const doodle = canvasRef.current?.exportPngDataUrl(2048) ?? "";
-      const prompt = doodle ? PROMPT_IMG2IMG : PROMPT_TXT2IMG;
-      const requestedStyle = styleOverride ?? styleId;
+      const doodle = job.doodleDataUrl;
+      const prompt = job.prompt;
+      const requestedStyle = job.requestedStyle;
       const effectiveStyleId: Exclude<StyleId, "auto"> =
         requestedStyle === "auto"
           ? doodle
@@ -745,7 +755,50 @@ export default function DoodleApp() {
     } finally {
       setIsGenerating(false);
     }
-  }, [styleId, styles]);
+  }, [styles]);
+
+  const enqueueJob = useCallback(
+    (requestedStyle: StyleId) => {
+      const canGenerate = hasInk || hasBackground;
+      if (!canGenerate) return;
+
+      const doodle = canvasRef.current?.exportPngDataUrl(2048) ?? "";
+      const prompt = doodle ? PROMPT_IMG2IMG : PROMPT_TXT2IMG;
+      const nextJob: GenJob = {
+        requestedStyle,
+        doodleDataUrl: doodle,
+        prompt,
+        createdAt: Date.now(),
+      };
+
+      setJobQueue((prev) => {
+        const next = [...prev, nextJob];
+        jobQueueRef.current = next;
+        return next;
+      });
+    },
+    [hasBackground, hasInk],
+  );
+
+  useEffect(() => {
+    jobQueueRef.current = jobQueue;
+    if (processingRef.current) return;
+    if (jobQueue.length === 0) return;
+
+    processingRef.current = true;
+    void (async () => {
+      while (jobQueueRef.current.length > 0) {
+        const current = jobQueueRef.current[0];
+        await runJob(current);
+        setJobQueue((prev) => {
+          const next = prev.slice(1);
+          jobQueueRef.current = next;
+          return next;
+        });
+      }
+      processingRef.current = false;
+    })();
+  }, [jobQueue, runJob]);
 
   return (
     <div className="app-viewport">
@@ -778,6 +831,21 @@ export default function DoodleApp() {
           </div>
 
           <div className="scroll-x no-scrollbar flex items-center gap-2 shrink-0 pl-2">
+            {jobQueue.length ? (
+              <div
+                className="kid-button kid-btn-icon"
+                aria-label="Queue"
+                style={{
+                  width: 42,
+                  height: 42,
+                  border: "1px solid rgba(36, 26, 34, 0.10)",
+                  background:
+                    "linear-gradient(135deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.55))",
+                }}
+              >
+                <span className="text-sm font-extrabold">{jobQueue.length}</span>
+              </div>
+            ) : null}
             <button
               type="button"
               className="kid-button kid-btn-sm"
@@ -1127,16 +1195,13 @@ export default function DoodleApp() {
                         "shrink-0",
                         selected ? "kid-btn-selected" : "",
                       ].join(" ")}
-                      onClick={() => {
-                        if (isGenerating || !canGenerate) return;
-                        void generateWithStyle(s.id);
-                      }}
+                      onClick={() => enqueueJob(s.id)}
                       aria-label={s.ariaLabel}
-                      disabled={isGenerating || !canGenerate}
+                      disabled={!canGenerate}
                       style={{
                         background: s.color,
                         color: "rgba(36, 26, 34, 0.92)",
-                        opacity: isGenerating || !canGenerate ? 0.55 : 1,
+                        opacity: !canGenerate ? 0.55 : 1,
                       }}
                     >
                       <span className="inline-flex items-center justify-center">
