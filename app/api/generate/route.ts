@@ -27,6 +27,14 @@ function mapQuality(q?: ReqBody["quality"]) {
   return q;
 }
 
+function normalizeDoubaoSize(v: unknown): string | undefined {
+  const s = typeof v === "string" ? v.trim().toLowerCase() : "";
+  if (!s) return undefined;
+  if (/^\d+x\d+$/.test(s)) return s;
+  if (s === "1k" || s === "2k" || s === "4k") return s;
+  return undefined;
+}
+
 function isDoubaoModel(model: string) {
   return model.startsWith("doubao-") || model.includes("seedream");
 }
@@ -77,6 +85,7 @@ export async function POST(req: Request) {
 
     const prompt = toPrompt(body.prompt, body.stylePrompt);
     const quality = mapQuality(body.quality);
+    const doubaoSize = normalizeDoubaoSize(body.size) ?? normalizeDoubaoSize(process.env.AIHUBMIX_DOUBAO_SIZE);
 
     const usePredictionsApi =
       (process.env.AIHUBMIX_IMAGE_API ?? "").toLowerCase() === "predictions" ||
@@ -98,7 +107,7 @@ export async function POST(req: Request) {
                   body.mode === "img2img" && body.imageDataUrl
                     ? body.imageDataUrl
                     : undefined,
-                size: process.env.AIHUBMIX_DOUBAO_SIZE ?? "auto",
+                size: doubaoSize,
                 n: 1,
                 quality,
                 watermark: false,
