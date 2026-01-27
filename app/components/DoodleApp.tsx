@@ -405,6 +405,7 @@ export default function DoodleApp() {
   const [isColorWallOpen, setIsColorWallOpen] = useState(false);
   const [colorWallTarget, setColorWallTarget] = useState<"pen" | "bg">("pen");
   const [recentColors, setRecentColors] = useState<string[]>([]);
+  const closeColorWall = useCallback(() => setIsColorWallOpen(false), []);
 
   type GenJob = {
     requestedStyle: StyleId;
@@ -1109,11 +1110,12 @@ export default function DoodleApp() {
                 ref={canvasRef}
                 className="doodle-canvas-shell"
                 onInkChange={setHasInk}
+                onStartStroke={closeColorWall}
                 color={color}
                 brushSize={brushSize}
                 tool={tool}
                 backgroundColor={backgroundColor}
-            />
+              />
 
               {isColorWallOpen ? (
                 <>

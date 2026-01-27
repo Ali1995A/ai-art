@@ -27,6 +27,7 @@ export type DoodleCanvasHandle = {
 type Props = {
   className?: string;
   onInkChange?: (hasInk: boolean) => void;
+  onStartStroke?: () => void;
   color: string;
   brushSize: number; // css px
   tool: "pen" | "eraser";
@@ -174,7 +175,7 @@ function drawStrokesLayer(
 }
 
 const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas(
-  { className, onInkChange, color, brushSize, tool, backgroundColor },
+  { className, onInkChange, onStartStroke, color, brushSize, tool, backgroundColor },
   ref,
 ) {
   const bgCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -249,6 +250,7 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 0 && event.pointerType === "mouse") return;
       event.preventDefault();
+      onStartStroke?.();
       try {
         canvas.setPointerCapture(event.pointerId);
       } catch {}
@@ -297,6 +299,7 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
       const t = event.touches[0];
       if (!t) return;
       if (event.cancelable) event.preventDefault();
+      onStartStroke?.();
       touchDrawingRef.current = true;
       const width = Math.max(2, Math.round(brushSize * dpr));
       currentStrokeRef.current = {
@@ -340,6 +343,7 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
       if (drawingRef.current || touchDrawingRef.current) return;
       if (event.button !== 0) return;
       event.preventDefault();
+      onStartStroke?.();
       mouseDrawingRef.current = true;
       const width = Math.max(2, Math.round(brushSize * dpr));
       currentStrokeRef.current = {
@@ -389,7 +393,7 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
-  }, [brushSize, color, commitStrokes, dpr, tool]);
+  }, [brushSize, color, commitStrokes, dpr, onStartStroke, tool]);
 
   useImperativeHandle(
     ref,
