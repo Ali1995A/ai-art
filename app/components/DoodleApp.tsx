@@ -854,7 +854,7 @@ export default function DoodleApp() {
             "radial-gradient(1200px 800px at 0% 0%, rgba(255, 79, 160, 0.18), transparent 55%), radial-gradient(900px 600px at 100% 0%, rgba(155, 92, 255, 0.16), transparent 55%), var(--card)",
         }}
       >
-        <div className="flex items-center justify-between px-2 pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-2 pb-3">
           <div className="flex items-center gap-2">
             <div
               className="kid-button flex items-center justify-center"
@@ -874,7 +874,7 @@ export default function DoodleApp() {
             </div>
           </div>
 
-          <div className="scroll-x no-scrollbar flex items-center gap-2 shrink-0 pl-2">
+          <div className="top-actions scroll-x no-scrollbar shrink-0 pl-2">
             {jobQueue.length ? (
               <div
                 className="kid-button kid-btn-icon"
@@ -1113,23 +1113,37 @@ export default function DoodleApp() {
                 brushSize={brushSize}
                 tool={tool}
                 backgroundColor={backgroundColor}
-              />
+            />
 
               {isColorWallOpen ? (
-                <div
-                  className="glass-card p-3 scroll-y no-scrollbar"
-                  style={{
-                    position: "absolute",
-                    left: 10,
-                    right: 10,
-                    top: 10,
-                    maxHeight: "calc(100% - 20px)",
-                    zIndex: 10,
-                  }}
-                >
-                <div className="mb-3">
-                  <div className="color-wall">
-                    {grays16.map((c) => {
+                <>
+                  <div
+                    aria-hidden
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      zIndex: 9,
+                      background: "rgba(255,255,255,0.25)",
+                    }}
+                    onMouseDown={() => setIsColorWallOpen(false)}
+                    onTouchStart={() => setIsColorWallOpen(false)}
+                  />
+                  <div
+                    className="glass-card p-3 scroll-y no-scrollbar"
+                    style={{
+                      position: "absolute",
+                      left: 10,
+                      right: 10,
+                      top: 10,
+                      maxHeight: "calc(100% - 20px)",
+                      zIndex: 10,
+                    }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                  >
+                  <div className="mb-3">
+                    <div className="color-wall">
+                      {grays16.map((c) => {
                       const selected =
                         colorWallTarget === "pen"
                           ? tool === "pen" && color === c
@@ -1227,7 +1241,8 @@ export default function DoodleApp() {
                     );
                   })}
                 </div>
-                </div>
+                  </div>
+                </>
               ) : null}
             </div>
 
