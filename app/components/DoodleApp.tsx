@@ -422,8 +422,8 @@ export default function DoodleApp() {
         color: "linear-gradient(135deg, #ffd1e6 0%, #b3e5ff 100%)",
         icon: <HeartIcon className="h-7 w-7" />,
         ariaLabel: "3D animation style",
-        labelZh: "3D动画",
-        labelPy: "sān wéi dòng huà",
+        labelZh: "皮克",
+        labelPy: "pí kè",
         labelEn: "3D",
         promptHint:
           "family-friendly 3D animation look, soft global illumination, clean surfaces, big simple shapes, keep doodle silhouette",
@@ -467,7 +467,7 @@ export default function DoodleApp() {
         icon: <HeartIcon className="h-7 w-7" />,
         ariaLabel: "Felt and clay style",
         labelZh: "毛毡",
-        labelPy: "yáng máo zhān",
+        labelPy: "máo zhān",
         labelEn: "Felt/Clay",
         promptHint:
           "wool felt / clay handmade texture, soft fibers, matte surface, cozy, keep doodle silhouette",
