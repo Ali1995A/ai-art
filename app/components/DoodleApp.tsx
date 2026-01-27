@@ -146,6 +146,29 @@ function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([bytes], { type: mime });
 }
 
+async function dataUrlToBlobSafe(dataUrl: string): Promise<Blob> {
+  // Avoid huge base64 -> atob -> Uint8Array conversions that can crash tabs on desktop.
+  if (dataUrl.startsWith("data:")) {
+    const res = await fetch(dataUrl);
+    return await res.blob();
+  }
+  return dataUrlToBlob(dataUrl);
+}
+
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  type: string,
+  quality?: number,
+): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("Canvas export failed"))),
+      type,
+      quality,
+    );
+  });
+}
+
 async function downscaleDataUrl(
   dataUrl: string,
   maxSide: number,
@@ -868,26 +891,27 @@ export default function DoodleApp() {
     a.remove();
   }, []);
 
-  const watermarkImageElementToDataUrl = useCallback(
-    (img: HTMLImageElement, spec: WatermarkSpec) => {
+  const watermarkImageElementToBlob = useCallback(
+    async (img: HTMLImageElement, spec: WatermarkSpec) => {
       const w = img.naturalWidth || img.width;
       const h = img.naturalHeight || img.height;
-      if (!w || !h) return "";
+      if (!w || !h) return null;
 
       const canvas = document.createElement("canvas");
       canvas.width = w;
       canvas.height = h;
       const ctx = canvas.getContext("2d");
-      if (!ctx) return "";
+      if (!ctx) return null;
 
       try {
         ctx.drawImage(img, 0, 0, w, h);
       } catch {
-        return "";
+        return null;
       }
 
       const { x, y, boxW, boxH, fontSize, padX, padY } = watermarkBoxForSize(w, h);
       const r = Math.round(fontSize * 0.65);
+
       ctx.save();
       ctx.globalAlpha = 0.5;
       roundRect(ctx, x, y, boxW, boxH, r);
@@ -896,18 +920,20 @@ export default function DoodleApp() {
       ctx.strokeStyle = "rgba(255, 79, 160, 0.22)";
       ctx.lineWidth = Math.max(1, Math.round(fontSize * 0.08));
       ctx.stroke();
+
       ctx.fillStyle = "rgba(36, 26, 34, 0.9)";
       ctx.textBaseline = "top";
       ctx.font = `600 ${Math.round(fontSize * 0.92)}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
       ctx.fillText(spec.date, x + padX, y + padY);
+
       ctx.fillStyle = "rgba(155, 92, 255, 0.92)";
       ctx.font = `650 ${Math.round(fontSize * 0.92)}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
-      const cc = "CC";
+      const cc = spec.creator || "CC";
       const ccW = ctx.measureText(cc).width;
       ctx.fillText(cc, x + boxW - padX - ccW, y + padY);
       ctx.restore();
 
-      return canvas.toDataURL("image/png");
+      return await canvasToBlob(canvas, "image/png");
     },
     [],
   );
@@ -950,7 +976,7 @@ export default function DoodleApp() {
     const doodleWatermarked =
       canvasRef.current?.exportPngDataUrlWithWatermark(2048, spec) ?? "";
     if (doodleWatermarked) {
-      const blob = dataUrlToBlob(doodleWatermarked);
+      const blob = await dataUrlToBlobSafe(doodleWatermarked);
       files.push(
         new File([blob], `doodle_${spec.date}_CC.png`, { type: "image/png" }),
       );
@@ -960,15 +986,13 @@ export default function DoodleApp() {
       const img = aiImgRef.current;
       const canUseImg =
         img && img.complete && (img.naturalWidth || 0) > 0 && (img.naturalHeight || 0) > 0;
-      const aiWatermarked =
-        canUseImg ? watermarkImageElementToDataUrl(img, spec) : "";
+      const aiBlob = canUseImg ? await watermarkImageElementToBlob(img, spec) : null;
 
-      if (aiWatermarked) {
-        const blob = dataUrlToBlob(aiWatermarked);
-        files.push(new File([blob], `ai_${spec.date}_CC.png`, { type: "image/png" }));
+      if (aiBlob) {
+        files.push(new File([aiBlob], `ai_${spec.date}_CC.png`, { type: "image/png" }));
       } else if (imageDataUrl.startsWith("data:")) {
         // Fallback (still sync): save raw data-url if watermark cannot be applied.
-        const blob = dataUrlToBlob(imageDataUrl);
+        const blob = await dataUrlToBlobSafe(imageDataUrl);
         files.push(new File([blob], `ai_${spec.date}_raw.png`, { type: "image/png" }));
       } else {
         // Last-resort async fallback; may lose "user activation" for automatic download.
@@ -977,7 +1001,7 @@ export default function DoodleApp() {
           const blob = await res.blob();
           const aiDataUrl = await blobToDataUrl(blob);
           const watermarked = await addWatermarkToDataUrl(aiDataUrl, spec);
-          const outBlob = dataUrlToBlob(watermarked);
+          const outBlob = await dataUrlToBlobSafe(watermarked);
           files.push(new File([outBlob], `ai_${spec.date}_CC.png`, { type: "image/png" }));
         } catch {}
       }
@@ -1024,7 +1048,7 @@ export default function DoodleApp() {
       downloadDataUrl(l.url, l.name);
       setTimeout(() => URL.revokeObjectURL(l.url), 30_000);
     }
-  }, [downloadDataUrl, imageDataUrl, shareFilesIfPossible, watermarkImageElementToDataUrl]);
+  }, [downloadDataUrl, imageDataUrl, shareFilesIfPossible, watermarkImageElementToBlob]);
 
   const clearAll = useCallback(() => {
     setError("");
