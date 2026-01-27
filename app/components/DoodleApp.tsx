@@ -81,6 +81,169 @@ function grayHex(v: number) {
   return `#${h}${h}${h}`;
 }
 
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function dateStampLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+async function loadImageFromDataUrl(dataUrl: string): Promise<HTMLImageElement> {
+  const img = new Image();
+  img.decoding = "async";
+  img.src = dataUrl;
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error("Image load failed"));
+  });
+  return img;
+}
+
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  const reader = new FileReader();
+  return await new Promise((resolve, reject) => {
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Read image failed"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+type WatermarkSpec = {
+  creator: string;
+  date: string;
+};
+
+function watermarkBoxForSize(w: number, h: number) {
+  const base = Math.max(18, Math.round(Math.min(w, h) * 0.03));
+  const fontSize = base;
+  const padX = Math.round(base * 0.7);
+  const padY = Math.round(base * 0.55);
+  const margin = Math.round(base * 0.6);
+  const boxW = Math.round(base * 6.6);
+  const boxH = Math.round(base * 2.2);
+  const x = w - margin - boxW;
+  const y = h - margin - boxH;
+  return { x, y, boxW, boxH, fontSize, padX, padY, margin };
+}
+
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
+  const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
+async function addWatermarkToDataUrl(
+  dataUrl: string,
+  spec: WatermarkSpec,
+): Promise<string> {
+  const img = await loadImageFromDataUrl(dataUrl);
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas not supported");
+
+  ctx.drawImage(img, 0, 0, w, h);
+
+  const { x, y, boxW, boxH, fontSize, padX, padY } = watermarkBoxForSize(w, h);
+  const r = Math.round(fontSize * 0.7);
+
+  ctx.save();
+  roundRect(ctx, x, y, boxW, boxH, r);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.70)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255, 79, 160, 0.25)";
+  ctx.lineWidth = Math.max(2, Math.round(fontSize * 0.1));
+  ctx.stroke();
+
+  ctx.fillStyle = "rgba(36, 26, 34, 0.78)";
+  ctx.textBaseline = "top";
+  ctx.font = `700 ${fontSize}px ${"system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial"}`;
+  ctx.fillText(spec.date, x + padX, y + padY);
+  ctx.fillStyle = "rgba(155, 92, 255, 0.85)";
+  ctx.font = `800 ${Math.round(fontSize * 1.05)}px ${"system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial"}`;
+  ctx.fillText(spec.creator, x + padX, y + padY + Math.round(fontSize * 1.1));
+  ctx.restore();
+
+  return canvas.toDataURL("image/png");
+}
+
+async function stripOurWatermarkFromDataUrl(dataUrl: string): Promise<string> {
+  const img = await loadImageFromDataUrl(dataUrl);
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return dataUrl;
+
+  ctx.drawImage(img, 0, 0, w, h);
+  const { x, y, boxW, boxH } = watermarkBoxForSize(w, h);
+
+  const box = ctx.getImageData(x, y, boxW, boxH);
+  const aboveY = Math.max(0, y - boxH - 6);
+  const above = ctx.getImageData(x, aboveY, boxW, Math.min(boxH, h - aboveY));
+
+  const avgLum = (imgData: ImageData) => {
+    let sum = 0;
+    let n = 0;
+    for (let i = 0; i < imgData.data.length; i += 16) {
+      const r = imgData.data[i];
+      const g = imgData.data[i + 1];
+      const b = imgData.data[i + 2];
+      sum += 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      n++;
+    }
+    return n ? sum / n : 0;
+  };
+
+  const lumBox = avgLum(box);
+  const lumAbove = avgLum(above);
+  const looksLikeOurWatermark = lumBox - lumAbove > 18;
+  if (!looksLikeOurWatermark) return dataUrl;
+
+  const sampleH = Math.max(6, Math.round(boxH * 0.18));
+  const sy = Math.max(0, y - sampleH - 4);
+  const sample = ctx.getImageData(x, sy, boxW, Math.min(sampleH, h - sy));
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let n = 0;
+  for (let i = 0; i < sample.data.length; i += 4) {
+    r += sample.data[i];
+    g += sample.data[i + 1];
+    b += sample.data[i + 2];
+    n++;
+  }
+  const avg = n ? `rgb(${Math.round(r / n)},${Math.round(g / n)},${Math.round(b / n)})` : "#ffffff";
+
+  ctx.save();
+  ctx.fillStyle = avg;
+  ctx.fillRect(x, y, boxW, boxH);
+  ctx.restore();
+
+  return canvas.toDataURL("image/png");
+}
+
 export default function DoodleApp() {
   const canvasRef = useRef<DoodleCanvasHandle | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -255,14 +418,10 @@ export default function DoodleApp() {
     if (!file) return;
     input.value = "";
 
-    const reader = new FileReader();
-    const dataUrl: string = await new Promise((resolve, reject) => {
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(new Error("Load image failed"));
-      reader.readAsDataURL(file);
-    });
+    const dataUrl = await blobToDataUrl(file);
+    const cleaned = await stripOurWatermarkFromDataUrl(dataUrl);
 
-    canvasRef.current?.setBackgroundImage(dataUrl);
+    canvasRef.current?.setBackgroundImage(cleaned);
     setHasBackground(true);
   }, []);
 
@@ -276,31 +435,39 @@ export default function DoodleApp() {
     a.remove();
   }, []);
 
-  const downloadUrlAsFile = useCallback(async (url: string, filename: string) => {
-    try {
-      const res = await fetch(url, { mode: "cors" });
-      const blob = await res.blob();
-      const objUrl = URL.createObjectURL(blob);
-      downloadDataUrl(objUrl, filename);
-      setTimeout(() => URL.revokeObjectURL(objUrl), 30_000);
-    } catch {
-      window.open(url, "_blank", "noopener,noreferrer");
-    }
-  }, [downloadDataUrl]);
-
   const saveToAlbum = useCallback(async () => {
     setError("");
+    const spec: WatermarkSpec = { creator: "CC", date: dateStampLocal() };
+
     const doodle = canvasRef.current?.exportPngDataUrl(2048) ?? "";
-    if (doodle) downloadDataUrl(doodle, "doodle.png");
+    if (doodle) {
+      const watermarked = await addWatermarkToDataUrl(doodle, spec);
+      downloadDataUrl(watermarked, `doodle_${spec.date}_CC.png`);
+    }
+
     if (!imageDataUrl) return;
     if (imageDataUrl.startsWith("data:")) {
-      setTimeout(() => downloadDataUrl(imageDataUrl, "ai.png"), 250);
+      const watermarked = await addWatermarkToDataUrl(imageDataUrl, spec);
+      setTimeout(
+        () => downloadDataUrl(watermarked, `ai_${spec.date}_CC.png`),
+        250,
+      );
       return;
     }
-    setTimeout(() => {
-      void downloadUrlAsFile(imageDataUrl, "ai.png");
-    }, 250);
-  }, [downloadDataUrl, downloadUrlAsFile, imageDataUrl]);
+
+    try {
+      const res = await fetch(imageDataUrl, { mode: "cors" });
+      const blob = await res.blob();
+      const dataUrl = await blobToDataUrl(blob);
+      const watermarked = await addWatermarkToDataUrl(dataUrl, spec);
+      setTimeout(
+        () => downloadDataUrl(watermarked, `ai_${spec.date}_CC.png`),
+        250,
+      );
+    } catch {
+      window.open(imageDataUrl, "_blank", "noopener,noreferrer");
+    }
+  }, [downloadDataUrl, imageDataUrl]);
 
   const generate = useCallback(async () => {
     setError("");
