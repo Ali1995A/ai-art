@@ -717,6 +717,13 @@ export default function DoodleApp() {
     }
   }, [downloadDataUrl, imageDataUrl]);
 
+  const clearAll = useCallback(() => {
+    setError("");
+    canvasRef.current?.clear();
+    canvasRef.current?.setBackgroundImage(null);
+    setHasBackground(false);
+  }, []);
+
   const runJob = useCallback(async (job: GenJob) => {
     setError("");
     setIsGenerating(true);
@@ -903,6 +910,25 @@ export default function DoodleApp() {
                   style={{ opacity: !hasInk || isGenerating ? 0.5 : 1 }}
                 >
                   <UndoIcon className="kid-icon" />
+                </button>
+                <button
+                  type="button"
+                  className="kid-button kid-btn-sm"
+                  onClick={clearAll}
+                  aria-label="Clear"
+                  disabled={(!hasInk && !hasBackground) || isGenerating}
+                  style={{
+                    opacity:
+                      (!hasInk && !hasBackground) || isGenerating ? 0.55 : 1,
+                  }}
+                >
+                  <span className="kid-label">
+                    <span className="label-line">清除</span>
+                    <span className="label-line pinyin-text opacity-75">
+                      qīng chú
+                    </span>
+                    <span className="label-line en-text opacity-75">Clear</span>
+                  </span>
                 </button>
                 <button
                   type="button"
