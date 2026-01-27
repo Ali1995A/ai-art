@@ -1381,6 +1381,22 @@ export default function DoodleApp() {
                 <span className="pinyin-text"> rú guǒ</span>{" "}
                 <span className="en-text">If blocked</span>
               </div>
+              <button
+                type="button"
+                className="kid-button kid-btn-icon"
+                onClick={() => setDownloadFallback(null)}
+                aria-label="Close"
+                style={{
+                  width: 42,
+                  height: 42,
+                  marginLeft: "auto",
+                  border: "1px solid rgba(36, 26, 34, 0.10)",
+                  background:
+                    "linear-gradient(135deg, rgba(255,255,255,0.85), rgba(255,255,255,0.55))",
+                }}
+              >
+                <span className="text-lg font-extrabold leading-none">×</span>
+              </button>
               {downloadFallback.map((f) => (
                 <button
                   key={f.url}
