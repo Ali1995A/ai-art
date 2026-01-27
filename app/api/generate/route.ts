@@ -85,7 +85,8 @@ export async function POST(req: Request) {
 
     const prompt = toPrompt(body.prompt, body.stylePrompt);
     const quality = mapQuality(body.quality);
-    const doubaoSize = normalizeDoubaoSize(body.size) ?? normalizeDoubaoSize(process.env.AIHUBMIX_DOUBAO_SIZE);
+    const doubaoSize =
+      normalizeDoubaoSize(process.env.AIHUBMIX_DOUBAO_SIZE) ?? "2k";
 
     const usePredictionsApi =
       (process.env.AIHUBMIX_IMAGE_API ?? "").toLowerCase() === "predictions" ||
