@@ -53,7 +53,7 @@ export default function DoodleApp() {
         icon: <HeartIcon className="h-7 w-7" />,
         ariaLabel: "Cute style",
         labelZh: "可爱",
-        labelPy: "ke ai",
+        labelPy: "kě ài",
         labelEn: "Cute",
         promptHint:
           "cute pastel kid illustration, soft shading, friendly face, gentle colors",
@@ -64,7 +64,7 @@ export default function DoodleApp() {
         icon: <SparkleIcon className="h-7 w-7" />,
         ariaLabel: "Sticker style",
         labelZh: "贴纸",
-        labelPy: "tie zhi",
+        labelPy: "tiē zhǐ",
         labelEn: "Sticker",
         promptHint:
           "sticker style, bold outline, flat colors, simple shapes, high contrast, clean",
@@ -75,7 +75,7 @@ export default function DoodleApp() {
         icon: <SparkleIcon className="h-7 w-7" />,
         ariaLabel: "Watercolor style",
         labelZh: "水彩",
-        labelPy: "shui cai",
+        labelPy: "shuǐ cǎi",
         labelEn: "Watercolor",
         promptHint:
           "watercolor, paper texture, soft edges, light washes, dreamy, child-friendly",
@@ -86,7 +86,7 @@ export default function DoodleApp() {
         icon: <WandIcon className="h-7 w-7" />,
         ariaLabel: "Storybook style",
         labelZh: "绘本",
-        labelPy: "hui ben",
+        labelPy: "huì běn",
         labelEn: "Storybook",
         promptHint:
           "storybook illustration, warm lighting, gentle outlines, cute, cozy, simple background",
@@ -257,8 +257,8 @@ export default function DoodleApp() {
                   <PhotoIcon className="h-6 w-6 mr-2" />
                   <span className="flex flex-col leading-tight text-[11px] font-semibold">
                     <span>相册</span>
-                    <span className="opacity-70">xiang ce</span>
-                    <span className="opacity-70">Album</span>
+                    <span className="pinyin-text opacity-75">xiàng cè</span>
+                    <span className="en-text opacity-75">Album</span>
                   </span>
                 </button>
                 <button
@@ -289,8 +289,8 @@ export default function DoodleApp() {
                 >
                   <span className="flex flex-col leading-tight text-[11px] font-semibold">
                     <span>橡皮</span>
-                    <span className="opacity-70">xiang pi</span>
-                    <span className="opacity-70">Eraser</span>
+                    <span className="pinyin-text opacity-75">xiàng pí</span>
+                    <span className="en-text opacity-75">Eraser</span>
                   </span>
                 </button>
               </div>
@@ -339,37 +339,41 @@ export default function DoodleApp() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {[8, 12, 16, 22].map((s) => {
-                    const selected = brushSize === s;
-                    return (
-                      <button
-                        key={s}
-                        type="button"
-                        className="kid-button inline-flex items-center justify-center"
-                        onClick={() => setBrushSize(s)}
-                        aria-label="Brush size"
-                        disabled={isGenerating}
-                        style={{
-                          width: 40,
-                          height: 40,
-                          border: selected
-                            ? "2px solid rgba(255, 79, 160, 0.9)"
-                            : "1px solid rgba(36, 26, 34, 0.10)",
-                          opacity: isGenerating ? 0.7 : 1,
-                        }}
-                      >
-                        <span
-                          aria-hidden
-                          style={{
-                            width: s,
-                            height: s,
-                            borderRadius: 999,
-                            background: "rgba(36, 26, 34, 0.92)",
-                          }}
-                        />
-                      </button>
-                    );
-                  })}
+                  <input
+                    type="range"
+                    min={4}
+                    max={36}
+                    step={1}
+                    value={brushSize}
+                    disabled={isGenerating}
+                    className="kid-slider"
+                    aria-label="Brush size slider"
+                    onChange={(e) => setBrushSize(Number(e.target.value))}
+                  />
+                  <div
+                    className="kid-button inline-flex items-center justify-center"
+                    style={{
+                      width: 46,
+                      height: 46,
+                      border: "1px solid rgba(36, 26, 34, 0.10)",
+                      opacity: isGenerating ? 0.7 : 1,
+                      background:
+                        "linear-gradient(135deg, rgba(255,255,255,0.85), rgba(255,255,255,0.55))",
+                    }}
+                    aria-hidden
+                  >
+                    <span
+                      style={{
+                        width: brushSize,
+                        height: brushSize,
+                        borderRadius: 999,
+                        background:
+                          tool === "eraser"
+                            ? "rgba(255, 79, 160, 0.88)"
+                            : "rgba(36, 26, 34, 0.92)",
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -422,10 +426,10 @@ export default function DoodleApp() {
                         <span className="text-[13px] font-extrabold">
                           {s.labelZh}
                         </span>
-                        <span className="text-[11px] font-semibold opacity-75">
+                        <span className="pinyin-text text-[11px] font-semibold opacity-75">
                           {s.labelPy}
                         </span>
-                        <span className="text-[11px] font-semibold opacity-75">
+                        <span className="en-text text-[11px] font-semibold opacity-75">
                           {s.labelEn}
                         </span>
                       </span>
@@ -453,8 +457,8 @@ export default function DoodleApp() {
                   <WandIcon className="h-6 w-6" />
                   <span className="flex flex-col leading-tight text-[11px] font-semibold">
                     <span>生成</span>
-                    <span className="opacity-70">sheng cheng</span>
-                    <span className="opacity-70">Generate</span>
+                    <span className="pinyin-text opacity-75">shēng chéng</span>
+                    <span className="en-text opacity-75">Generate</span>
                   </span>
                 </button>
 
@@ -479,8 +483,8 @@ export default function DoodleApp() {
                   <DownloadIcon className="h-6 w-6" />
                   <span className="flex flex-col leading-tight text-[11px] font-semibold">
                     <span>保存</span>
-                    <span className="opacity-70">bao cun</span>
-                    <span className="opacity-70">Save</span>
+                    <span className="pinyin-text opacity-75">bǎo cún</span>
+                    <span className="en-text opacity-75">Save</span>
                   </span>
                 </button>
               </div>
