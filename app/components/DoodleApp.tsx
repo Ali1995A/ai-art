@@ -1034,8 +1034,8 @@ export default function DoodleApp() {
 
                 <input
                   type="range"
-                  min={8}
-                  max={72}
+                  min={1}
+                  max={99}
                   step={1}
                   value={brushSize}
                   disabled={isGenerating}
