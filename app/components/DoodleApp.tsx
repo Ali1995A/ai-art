@@ -1045,6 +1045,52 @@ export default function DoodleApp() {
                 <span className="label-line en-text opacity-75">Album</span>
               </span>
             </button>
+
+            <div
+              className="kid-button kid-btn-sm shrink-0"
+              style={{
+                gap: 12,
+                paddingLeft: 14,
+                paddingRight: 14,
+                opacity: isGenerating ? 0.7 : 1,
+              }}
+              aria-label="Brush size"
+            >
+              <input
+                type="range"
+                min={1}
+                max={99}
+                step={1}
+                value={brushSize}
+                disabled={isGenerating}
+                className="kid-slider kid-slider-top"
+                aria-label="Brush size slider"
+                onChange={(e) => setBrushSize(Number(e.target.value))}
+              />
+              <div
+                className="kid-button kid-btn-icon"
+                style={{
+                  width: 42,
+                  height: 42,
+                  border: "1px solid rgba(36, 26, 34, 0.10)",
+                  background:
+                    "linear-gradient(135deg, rgba(255,255,255,0.85), rgba(255,255,255,0.55))",
+                }}
+                aria-hidden
+              >
+                <span
+                  style={{
+                    width: brushSize,
+                    height: brushSize,
+                    borderRadius: 999,
+                    background:
+                      tool === "eraser"
+                        ? "rgba(255, 79, 160, 0.88)"
+                        : "rgba(36, 26, 34, 0.92)",
+                  }}
+                />
+              </div>
+            </div>
             <button
               type="button"
               className="kid-button kid-btn-sm"
@@ -1256,40 +1302,6 @@ export default function DoodleApp() {
                   </span>
                 </button>
 
-                <input
-                  type="range"
-                  min={1}
-                  max={99}
-                  step={1}
-                  value={brushSize}
-                  disabled={isGenerating}
-                  className="kid-slider"
-                  aria-label="Brush size slider"
-                  style={{ flex: "1 1 140px", minWidth: 96, maxWidth: 220 }}
-                  onChange={(e) => setBrushSize(Number(e.target.value))}
-                />
-                <div
-                  className="kid-button kid-btn-icon"
-                  style={{
-                    border: "1px solid rgba(36, 26, 34, 0.10)",
-                    opacity: isGenerating ? 0.7 : 1,
-                    background:
-                      "linear-gradient(135deg, rgba(255,255,255,0.85), rgba(255,255,255,0.55))",
-                  }}
-                  aria-hidden
-                >
-                  <span
-                    style={{
-                      width: brushSize,
-                      height: brushSize,
-                      borderRadius: 999,
-                      background:
-                        tool === "eraser"
-                          ? "rgba(255, 79, 160, 0.88)"
-                          : "rgba(36, 26, 34, 0.92)",
-                    }}
-                  />
-                </div>
             </div>
 
             <div className="pane-main">

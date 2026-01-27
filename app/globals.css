@@ -154,6 +154,14 @@ html[data-orient="portrait"] .kid-slider {
   width: clamp(96px, 34vw, 180px);
 }
 
+.kid-slider-top {
+  width: clamp(220px, 40vw, 380px);
+}
+
+html[data-orient="portrait"] .kid-slider-top {
+  width: clamp(220px, 52vw, 420px);
+}
+
 .kid-slider::-webkit-slider-runnable-track {
   height: 10px;
   border-radius: 999px;
