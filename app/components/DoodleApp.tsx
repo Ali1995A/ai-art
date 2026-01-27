@@ -328,7 +328,7 @@ export default function DoodleApp() {
         >
           <div className="glass-card flex-1 p-3">
             <div className="flex items-center justify-between gap-2 px-1 pb-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
                   className="kid-button inline-flex items-center justify-center px-3"
@@ -339,9 +339,11 @@ export default function DoodleApp() {
                 >
                   <PhotoIcon className="h-6 w-6 mr-2" />
                   <span className="flex flex-col leading-tight text-[11px] font-semibold">
-                    <span>相册</span>
-                    <span className="pinyin-text opacity-75">xiàng cè</span>
-                    <span className="en-text opacity-75">Album</span>
+                    <span className="label-line">相册</span>
+                    <span className="label-line pinyin-text opacity-75">
+                      xiàng cè
+                    </span>
+                    <span className="label-line en-text opacity-75">Album</span>
                   </span>
                 </button>
                 <button
@@ -371,14 +373,16 @@ export default function DoodleApp() {
                   }}
                 >
                   <span className="flex flex-col leading-tight text-[11px] font-semibold">
-                    <span>橡皮</span>
-                    <span className="pinyin-text opacity-75">xiàng pí</span>
-                    <span className="en-text opacity-75">Eraser</span>
+                    <span className="label-line">橡皮</span>
+                    <span className="label-line pinyin-text opacity-75">
+                      xiàng pí
+                    </span>
+                    <span className="label-line en-text opacity-75">Eraser</span>
                   </span>
                 </button>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap justify-end">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -410,9 +414,13 @@ export default function DoodleApp() {
                       }}
                     />
                     <span className="flex flex-col leading-tight text-[11px] font-semibold">
-                      <span>颜色</span>
-                      <span className="pinyin-text opacity-75">yán sè</span>
-                      <span className="en-text opacity-75">Color</span>
+                      <span className="label-line">颜色</span>
+                      <span className="label-line pinyin-text opacity-75">
+                        yán sè
+                      </span>
+                      <span className="label-line en-text opacity-75">
+                        Color
+                      </span>
                     </span>
                   </button>
                 </div>
@@ -540,14 +548,14 @@ export default function DoodleApp() {
 
           <div className="glass-card flex-1 p-3 flex flex-col">
             <div className="flex items-center justify-between px-1 pb-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pr-2">
                 {styles.map((s) => {
                   const selected = s.id === styleId;
                   return (
                     <button
                       key={s.id}
                       type="button"
-                      className="kid-button inline-flex items-center gap-2 px-3"
+                      className="kid-button inline-flex items-center gap-2 px-3 shrink-0"
                       onClick={() => setStyleId(s.id)}
                       aria-label={s.ariaLabel}
                       disabled={isGenerating}
@@ -564,14 +572,14 @@ export default function DoodleApp() {
                       <span className="inline-flex items-center justify-center">
                         {s.icon}
                       </span>
-                      <span className="flex flex-col leading-tight text-left">
-                        <span className="text-[13px] font-extrabold">
+                      <span className="flex flex-col leading-tight text-left min-w-0">
+                        <span className="label-line text-[13px] font-extrabold">
                           {s.labelZh}
                         </span>
-                        <span className="pinyin-text text-[11px] font-semibold opacity-75">
+                        <span className="label-line pinyin-text text-[11px] font-semibold opacity-75">
                           {s.labelPy}
                         </span>
-                        <span className="en-text text-[11px] font-semibold opacity-75">
+                        <span className="label-line en-text text-[11px] font-semibold opacity-75">
                           {s.labelEn}
                         </span>
                       </span>
@@ -598,9 +606,13 @@ export default function DoodleApp() {
                 >
                   <WandIcon className="h-6 w-6" />
                   <span className="flex flex-col leading-tight text-[11px] font-semibold">
-                    <span>生成</span>
-                    <span className="pinyin-text opacity-75">shēng chéng</span>
-                    <span className="en-text opacity-75">Generate</span>
+                    <span className="label-line">生成</span>
+                    <span className="label-line pinyin-text opacity-75">
+                      shēng chéng
+                    </span>
+                    <span className="label-line en-text opacity-75">
+                      Generate
+                    </span>
                   </span>
                 </button>
 
@@ -624,9 +636,11 @@ export default function DoodleApp() {
                 >
                   <DownloadIcon className="h-6 w-6" />
                   <span className="flex flex-col leading-tight text-[11px] font-semibold">
-                    <span>保存</span>
-                    <span className="pinyin-text opacity-75">bǎo cún</span>
-                    <span className="en-text opacity-75">Save</span>
+                    <span className="label-line">保存</span>
+                    <span className="label-line pinyin-text opacity-75">
+                      bǎo cún
+                    </span>
+                    <span className="label-line en-text opacity-75">Save</span>
                   </span>
                 </button>
               </div>

@@ -89,7 +89,7 @@ body {
 }
 
 .kid-slider {
-  width: 180px;
+  width: clamp(120px, 26vw, 180px);
   height: 22px;
   accent-color: var(--pink-600);
 }
@@ -144,6 +144,21 @@ body {
 .color-chip-selected {
   border: 2px solid rgba(255, 79, 160, 0.95);
   box-shadow: 0 10px 18px rgba(255, 79, 160, 0.16);
+}
+
+.label-line {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 .split-layout {
