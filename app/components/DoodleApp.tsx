@@ -602,23 +602,37 @@ export default function DoodleApp() {
   }, []);
 
   useEffect(() => {
+    let raf = 0;
     const applyAppHeight = () => {
       const height =
         window.visualViewport?.height ??
         Math.min(window.innerHeight, document.documentElement.clientHeight);
       document.documentElement.style.setProperty("--app-height", `${height}px`);
 
-      const orient = window.innerWidth > window.innerHeight ? "landscape" : "portrait";
-      document.documentElement.dataset.orient = orient;
+      const orient =
+        window.matchMedia?.("(orientation: landscape)").matches ||
+        window.innerWidth > window.innerHeight
+          ? "landscape"
+          : "portrait";
+      if (document.documentElement.dataset.orient !== orient) {
+        document.documentElement.dataset.orient = orient;
+      }
     };
+
+    const schedule = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => applyAppHeight());
+    };
+
     applyAppHeight();
-    window.addEventListener("resize", applyAppHeight, { passive: true });
-    window.visualViewport?.addEventListener("resize", applyAppHeight, {
+    window.addEventListener("resize", schedule, { passive: true });
+    window.visualViewport?.addEventListener("resize", schedule, {
       passive: true,
     });
     return () => {
-      window.removeEventListener("resize", applyAppHeight);
-      window.visualViewport?.removeEventListener("resize", applyAppHeight);
+      if (raf) cancelAnimationFrame(raf);
+      window.removeEventListener("resize", schedule);
+      window.visualViewport?.removeEventListener("resize", schedule);
     };
   }, []);
 
@@ -794,8 +808,7 @@ export default function DoodleApp() {
           className="split-layout"
         >
           <div className="glass-card pane p-3 flex flex-col">
-            <div className="flex items-center justify-between gap-2 px-1 pb-2">
-              <div className="scroll-x no-scrollbar flex items-center gap-2 pr-2">
+            <div className="scroll-x no-scrollbar flex items-center gap-2 px-1 pb-2">
                 <button
                   type="button"
                   className="kid-button kid-btn-sm"
@@ -847,131 +860,119 @@ export default function DoodleApp() {
                     <span className="label-line en-text opacity-75">Eraser</span>
                   </span>
                 </button>
-              </div>
-
-              <div className="scroll-x no-scrollbar flex items-center gap-2 justify-end pl-2">
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    className={[
-                      "kid-button",
-                      "kid-btn-sm",
-                      isColorWallOpen ? "kid-btn-selected" : "",
-                    ].join(" ")}
-                    onClick={() => {
-                      setColorWallTarget("pen");
-                      setIsColorWallOpen((v) => !v);
-                    }}
-                    aria-label="Color palette"
-                    disabled={isGenerating}
-                    style={{
-                      opacity: isGenerating ? 0.7 : 1,
-                    }}
-                  >
-                    <span
-                      className="inline-block"
-                      aria-hidden
-                      style={{
-                        width: 18,
-                        height: 18,
-                        borderRadius: 999,
-                        background: tool === "eraser" ? "#ffffff" : color,
-                        border: "1px solid rgba(36, 26, 34, 0.12)",
-                        boxShadow:
-                          tool === "eraser"
-                            ? "inset 0 0 0 2px rgba(36, 26, 34, 0.10)"
-                            : undefined,
-                      }}
-                    />
-                    <span className="kid-label">
-                      <span className="label-line">颜色</span>
-                      <span className="label-line pinyin-text opacity-75">
-                        yán sè
-                      </span>
-                      <span className="label-line en-text opacity-75">
-                        Color
-                      </span>
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={[
-                      "kid-button",
-                      "kid-btn-sm",
-                      isColorWallOpen && colorWallTarget === "bg"
-                        ? "kid-btn-selected"
-                        : "",
-                    ].join(" ")}
-                    onClick={() => {
-                      setColorWallTarget("bg");
-                      setIsColorWallOpen(true);
-                    }}
-                    aria-label="Background color"
-                    disabled={isGenerating}
-                    style={{ opacity: isGenerating ? 0.7 : 1 }}
-                  >
-                    <span
-                      className="inline-block"
-                      aria-hidden
-                      style={{
-                        width: 18,
-                        height: 18,
-                        borderRadius: 999,
-                        background: backgroundColor,
-                        border: "1px solid rgba(36, 26, 34, 0.12)",
-                      }}
-                    />
-                    <span className="kid-label">
-                      <span className="label-line">底色</span>
-                      <span className="label-line pinyin-text opacity-75">
-                        dǐ sè
-                      </span>
-                      <span className="label-line en-text opacity-75">
-                        Background
-                      </span>
-                    </span>
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <input
-                    type="range"
-                    min={4}
-                    max={36}
-                    step={1}
-                    value={brushSize}
-                    disabled={isGenerating}
-                    className="kid-slider"
-                    aria-label="Brush size slider"
-                    onChange={(e) => setBrushSize(Number(e.target.value))}
-                  />
-                  <div
-                    className="kid-button inline-flex items-center justify-center"
-                    style={{
-                      width: 46,
-                      height: 46,
-                      border: "1px solid rgba(36, 26, 34, 0.10)",
-                      opacity: isGenerating ? 0.7 : 1,
-                      background:
-                        "linear-gradient(135deg, rgba(255,255,255,0.85), rgba(255,255,255,0.55))",
-                    }}
+                <button
+                  type="button"
+                  className={[
+                    "kid-button",
+                    "kid-btn-sm",
+                    isColorWallOpen && colorWallTarget === "pen"
+                      ? "kid-btn-selected"
+                      : "",
+                  ].join(" ")}
+                  onClick={() => {
+                    setColorWallTarget("pen");
+                    setIsColorWallOpen((v) => !v);
+                  }}
+                  aria-label="Color palette"
+                  disabled={isGenerating}
+                  style={{
+                    opacity: isGenerating ? 0.7 : 1,
+                  }}
+                >
+                  <span
+                    className="inline-block"
                     aria-hidden
-                  >
-                    <span
-                      style={{
-                        width: brushSize,
-                        height: brushSize,
-                        borderRadius: 999,
-                        background:
-                          tool === "eraser"
-                            ? "rgba(255, 79, 160, 0.88)"
-                            : "rgba(36, 26, 34, 0.92)",
-                      }}
-                    />
-                  </div>
+                    style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: 999,
+                      background: tool === "eraser" ? "#ffffff" : color,
+                      border: "1px solid rgba(36, 26, 34, 0.12)",
+                      boxShadow:
+                        tool === "eraser"
+                          ? "inset 0 0 0 2px rgba(36, 26, 34, 0.10)"
+                          : undefined,
+                    }}
+                  />
+                  <span className="kid-label">
+                    <span className="label-line">颜色</span>
+                    <span className="label-line pinyin-text opacity-75">
+                      yán sè
+                    </span>
+                    <span className="label-line en-text opacity-75">Color</span>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className={[
+                    "kid-button",
+                    "kid-btn-sm",
+                    isColorWallOpen && colorWallTarget === "bg"
+                      ? "kid-btn-selected"
+                      : "",
+                  ].join(" ")}
+                  onClick={() => {
+                    setColorWallTarget("bg");
+                    setIsColorWallOpen(true);
+                  }}
+                  aria-label="Background color"
+                  disabled={isGenerating}
+                  style={{ opacity: isGenerating ? 0.7 : 1 }}
+                >
+                  <span
+                    className="inline-block"
+                    aria-hidden
+                    style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: 999,
+                      background: backgroundColor,
+                      border: "1px solid rgba(36, 26, 34, 0.12)",
+                    }}
+                  />
+                  <span className="kid-label">
+                    <span className="label-line">底色</span>
+                    <span className="label-line pinyin-text opacity-75">dǐ sè</span>
+                    <span className="label-line en-text opacity-75">
+                      Background
+                    </span>
+                  </span>
+                </button>
+
+                <input
+                  type="range"
+                  min={4}
+                  max={36}
+                  step={1}
+                  value={brushSize}
+                  disabled={isGenerating}
+                  className="kid-slider"
+                  aria-label="Brush size slider"
+                  onChange={(e) => setBrushSize(Number(e.target.value))}
+                />
+                <div
+                  className="kid-button kid-btn-icon"
+                  style={{
+                    border: "1px solid rgba(36, 26, 34, 0.10)",
+                    opacity: isGenerating ? 0.7 : 1,
+                    background:
+                      "linear-gradient(135deg, rgba(255,255,255,0.85), rgba(255,255,255,0.55))",
+                  }}
+                  aria-hidden
+                >
+                  <span
+                    style={{
+                      width: brushSize,
+                      height: brushSize,
+                      borderRadius: 999,
+                      background:
+                        tool === "eraser"
+                          ? "rgba(255, 79, 160, 0.88)"
+                          : "rgba(36, 26, 34, 0.92)",
+                    }}
+                  />
                 </div>
-              </div>
             </div>
 
             <div className="pane-main">
@@ -993,7 +994,7 @@ export default function DoodleApp() {
                     left: 10,
                     right: 10,
                     top: 10,
-                    maxHeight: "min(52vh, 520px)",
+                    maxHeight: "calc(100% - 20px)",
                     zIndex: 10,
                   }}
                 >
