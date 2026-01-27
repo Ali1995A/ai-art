@@ -693,19 +693,20 @@ export default function DoodleApp() {
     }
   }, [downloadDataUrl, imageDataUrl]);
 
-  const generate = useCallback(async () => {
+  const generateWithStyle = useCallback(async (styleOverride?: StyleId) => {
     setError("");
     setIsGenerating(true);
     try {
       const doodle = canvasRef.current?.exportPngDataUrl(2048) ?? "";
       const prompt = doodle ? PROMPT_IMG2IMG : PROMPT_TXT2IMG;
+      const requestedStyle = styleOverride ?? styleId;
       const effectiveStyleId: Exclude<StyleId, "auto"> =
-        styleId === "auto"
+        requestedStyle === "auto"
           ? doodle
             ? pickStyleFromMetrics(await analyzeDoodle(doodle))
             : "storybook"
-          : (styleId as Exclude<StyleId, "auto">);
-      if (styleId === "auto") setStyleId(effectiveStyleId);
+          : (requestedStyle as Exclude<StyleId, "auto">);
+      setStyleId(effectiveStyleId);
       const effectiveStyle =
         styles.find((s) => s.id === effectiveStyleId) ??
         styles.find((s) => s.id === "storybook")!;
@@ -1088,6 +1089,7 @@ export default function DoodleApp() {
               <div className="scroll-x no-scrollbar flex-1 min-w-0 flex items-center gap-2 pr-2">
                 {styles.map((s) => {
                   const selected = s.id === styleId;
+                  const canGenerate = hasInk || hasBackground;
                   return (
                     <button
                       key={s.id}
@@ -1098,13 +1100,16 @@ export default function DoodleApp() {
                         "shrink-0",
                         selected ? "kid-btn-selected" : "",
                       ].join(" ")}
-                      onClick={() => setStyleId(s.id)}
+                      onClick={() => {
+                        if (isGenerating || !canGenerate) return;
+                        void generateWithStyle(s.id);
+                      }}
                       aria-label={s.ariaLabel}
-                      disabled={isGenerating}
+                      disabled={isGenerating || !canGenerate}
                       style={{
                         background: s.color,
                         color: "rgba(36, 26, 34, 0.92)",
-                        opacity: isGenerating ? 0.7 : 1,
+                        opacity: isGenerating || !canGenerate ? 0.55 : 1,
                       }}
                     >
                       <span className="inline-flex items-center justify-center">
@@ -1126,33 +1131,6 @@ export default function DoodleApp() {
                 })}
               </div>
               <div className="scroll-x no-scrollbar flex items-center gap-2 shrink-0 pl-2">
-                <button
-                  type="button"
-                  className="kid-button kid-btn-md"
-                  onClick={generate}
-                  aria-label="Generate"
-                  disabled={isGenerating || (!hasInk && !hasBackground)}
-                  style={{
-                    background:
-                      "linear-gradient(135deg, var(--pink-300) 0%, var(--purple-600) 100%)",
-                    color: "rgba(36, 26, 34, 0.92)",
-                    border: "1px solid rgba(36, 26, 34, 0.10)",
-                    opacity:
-                      isGenerating || (!hasInk && !hasBackground) ? 0.55 : 1,
-                  }}
-                >
-                  <WandIcon className="kid-icon shrink-0" />
-                  <span className="kid-label">
-                    <span className="label-line">生成</span>
-                    <span className="label-line pinyin-text opacity-75">
-                      shēng chéng
-                    </span>
-                    <span className="label-line en-text opacity-75">
-                      Generate
-                    </span>
-                  </span>
-                </button>
-
                 <button
                   type="button"
                   className="kid-button kid-btn-md"
