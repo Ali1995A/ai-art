@@ -115,14 +115,14 @@ export default function DoodleApp() {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: doodle ? "img2img" : "txt2img",
-          prompt: DEFAULT_BASE_PROMPT,
-          stylePrompt: selectedStyle.promptHint,
-          imageDataUrl: doodle || undefined,
-          size: "512x512",
-          quality: "fast",
-        }),
+          body: JSON.stringify({
+            mode: doodle ? "img2img" : "txt2img",
+            prompt: DEFAULT_BASE_PROMPT,
+            stylePrompt: selectedStyle.promptHint,
+            imageDataUrl: doodle || undefined,
+            size: "512x512",
+            quality: "fast",
+          }),
       });
 
       const json = (await res.json()) as GenerateResponse;
