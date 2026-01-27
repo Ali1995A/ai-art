@@ -766,7 +766,7 @@ export default function DoodleApp() {
         <div
           className="split-layout"
         >
-          <div className="glass-card flex-1 p-3 flex flex-col">
+          <div className="glass-card pane p-3 flex flex-col">
             <div className="flex items-center justify-between gap-2 px-1 pb-2">
               <div className="scroll-x no-scrollbar flex items-center gap-2 pr-2">
                 <button
@@ -947,11 +947,29 @@ export default function DoodleApp() {
               </div>
             </div>
 
-            {isColorWallOpen ? (
-              <div
-                className="mt-3 glass-card p-3 scroll-y no-scrollbar"
-                style={{ maxHeight: "min(44vh, 420px)" }}
-              >
+            <div className="pane-main">
+              <DoodleCanvas
+                ref={canvasRef}
+                className="doodle-canvas-shell"
+                onInkChange={setHasInk}
+                color={color}
+                brushSize={brushSize}
+                tool={tool}
+                backgroundColor={backgroundColor}
+              />
+
+              {isColorWallOpen ? (
+                <div
+                  className="glass-card p-3 scroll-y no-scrollbar"
+                  style={{
+                    position: "absolute",
+                    left: 10,
+                    right: 10,
+                    top: 10,
+                    maxHeight: "min(52vh, 520px)",
+                    zIndex: 10,
+                  }}
+                >
                 <div className="mb-3">
                   <div className="color-wall">
                     {grays16.map((c) => {
@@ -1052,18 +1070,9 @@ export default function DoodleApp() {
                     );
                   })}
                 </div>
-              </div>
-            ) : null}
-
-            <DoodleCanvas
-              ref={canvasRef}
-              className="doodle-canvas-shell"
-              onInkChange={setHasInk}
-              color={color}
-              brushSize={brushSize}
-              tool={tool}
-              backgroundColor={backgroundColor}
-            />
+                </div>
+              ) : null}
+            </div>
 
             <input
               ref={fileInputRef}
@@ -1074,7 +1083,7 @@ export default function DoodleApp() {
             />
           </div>
 
-          <div className="glass-card flex-1 p-3 flex flex-col">
+          <div className="glass-card pane p-3 flex flex-col">
             <div className="flex items-center justify-between px-1 pb-2 gap-2">
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pr-2">
                 {styles.map((s) => {
@@ -1173,71 +1182,75 @@ export default function DoodleApp() {
               </div>
             </div>
 
-            <div className="relative flex-1 overflow-hidden rounded-2xl border border-[color:var(--card-border)] bg-white/70">
-              {imageDataUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={imageDataUrl}
-                  alt=""
-                  className="h-full w-full object-contain"
-                  draggable={false}
-                />
-              ) : (
-                <div className="h-full w-full flex items-center justify-center text-sm opacity-70">
-                  <div className="flex flex-col items-center gap-3">
-                    <div
-                      className="kid-button flex items-center justify-center"
-                      style={{
-                        width: 72,
-                        height: 72,
-                        background: selectedStyle.color,
-                        color: "rgba(36, 26, 34, 0.9)",
-                        border: "1px solid rgba(36, 26, 34, 0.10)",
-                      }}
-                      aria-hidden
-                    >
-                      <HeartIcon className="h-8 w-8" />
+            <div className="pane-main">
+              <div className="relative h-full w-full overflow-hidden rounded-2xl border border-[color:var(--card-border)] bg-white/70">
+                {imageDataUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={imageDataUrl}
+                    alt=""
+                    className="h-full w-full object-contain"
+                    draggable={false}
+                  />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center text-sm opacity-70">
+                    <div className="flex flex-col items-center gap-3">
+                      <div
+                        className="kid-button flex items-center justify-center"
+                        style={{
+                          width: 72,
+                          height: 72,
+                          background: selectedStyle.color,
+                          color: "rgba(36, 26, 34, 0.9)",
+                          border: "1px solid rgba(36, 26, 34, 0.10)",
+                        }}
+                        aria-hidden
+                      >
+                        <HeartIcon className="h-8 w-8" />
+                      </div>
+                      <div className="sr-only">
+                        Generated image will appear here
+                      </div>
                     </div>
-                    <div className="sr-only">Generated image will appear here</div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {isGenerating ? (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-sm">
-                  <div className="kid-button px-5 py-3 text-sm font-semibold">
-                    <span className="inline-flex items-center gap-2">
-                      <span
-                        className="inline-block h-3 w-3 rounded-full"
-                        style={{
-                          background:
-                            "linear-gradient(135deg, var(--pink-600) 0%, var(--purple-600) 100%)",
-                          animation: "pulse 1s infinite ease-in-out",
-                        }}
-                      />
-                      <span
-                        className="inline-block h-3 w-3 rounded-full"
-                        style={{
-                          background:
-                            "linear-gradient(135deg, var(--pink-600) 0%, var(--purple-600) 100%)",
-                          animation: "pulse 1s infinite ease-in-out",
-                          animationDelay: "0.15s",
-                        }}
-                      />
-                      <span
-                        className="inline-block h-3 w-3 rounded-full"
-                        style={{
-                          background:
-                            "linear-gradient(135deg, var(--pink-600) 0%, var(--purple-600) 100%)",
-                          animation: "pulse 1s infinite ease-in-out",
-                          animationDelay: "0.3s",
-                        }}
-                      />
-                      <span className="sr-only">Loading</span>
-                    </span>
+                {isGenerating ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-sm">
+                    <div className="kid-button px-5 py-3 text-sm font-semibold">
+                      <span className="inline-flex items-center gap-2">
+                        <span
+                          className="inline-block h-3 w-3 rounded-full"
+                          style={{
+                            background:
+                              "linear-gradient(135deg, var(--pink-600) 0%, var(--purple-600) 100%)",
+                            animation: "pulse 1s infinite ease-in-out",
+                          }}
+                        />
+                        <span
+                          className="inline-block h-3 w-3 rounded-full"
+                          style={{
+                            background:
+                              "linear-gradient(135deg, var(--pink-600) 0%, var(--purple-600) 100%)",
+                            animation: "pulse 1s infinite ease-in-out",
+                            animationDelay: "0.15s",
+                          }}
+                        />
+                        <span
+                          className="inline-block h-3 w-3 rounded-full"
+                          style={{
+                            background:
+                              "linear-gradient(135deg, var(--pink-600) 0%, var(--purple-600) 100%)",
+                            animation: "pulse 1s infinite ease-in-out",
+                            animationDelay: "0.3s",
+                          }}
+                        />
+                        <span className="sr-only">Loading</span>
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ) : null}
+                ) : null}
+              </div>
             </div>
 
             {error ? (
