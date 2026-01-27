@@ -75,6 +75,12 @@ function hslToHex(h: number, s: number, l: number) {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
+function grayHex(v: number) {
+  const vv = Math.max(0, Math.min(255, Math.round(v)));
+  const h = vv.toString(16).padStart(2, "0");
+  return `#${h}${h}${h}`;
+}
+
 export default function DoodleApp() {
   const canvasRef = useRef<DoodleCanvasHandle | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -146,18 +152,34 @@ export default function DoodleApp() {
 
   const palette256 = useMemo(() => {
     const hues = 16;
-    const lightness = [18, 26, 34, 44, 56, 66, 76, 86];
-    const sats = [92, 60];
+    // 16x16 wall: rows = (sat, lightness), cols = hue
+    // Make the wall feel like a smooth gradient left->right (hue), top->bottom (lightness).
+    const lightness = [22, 28, 34, 40, 48, 58, 68, 78];
+    const sats = [92, 62];
     const out: string[] = [];
-    for (let h = 0; h < hues; h++) {
-      const hue = Math.round((360 / hues) * h);
-      for (let li = 0; li < lightness.length; li++) {
-        for (let si = 0; si < sats.length; si++) {
-          out.push(hslToHex(hue, sats[si], lightness[li]));
-        }
+
+    // Build row definitions first to ensure a consistent gradient order.
+    const rows: Array<{ sat: number; light: number }> = [];
+    for (let li = 0; li < lightness.length; li++) {
+      for (let si = 0; si < sats.length; si++) {
+        rows.push({ sat: sats[si], light: lightness[li] });
       }
     }
+
+    for (const row of rows) {
+      for (let h = 0; h < hues; h++) {
+        const hue = Math.round((360 / hues) * h);
+        out.push(hslToHex(hue, row.sat, row.light));
+      }
+    }
+
     return out.slice(0, 256);
+  }, []);
+
+  const grays16 = useMemo(() => {
+    const out: string[] = [];
+    for (let i = 0; i < 16; i++) out.push(grayHex((255 / 15) * i));
+    return out;
   }, []);
 
   useEffect(() => {
@@ -437,9 +459,40 @@ export default function DoodleApp() {
 
             {isColorWallOpen ? (
               <div className="mt-3 glass-card p-3">
+                <div className="mb-3">
+                  <div className="color-wall">
+                    {grays16.map((c) => {
+                      const selected = tool === "pen" && color === c;
+                      const isWhite = c.toLowerCase() === "#ffffff";
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          className={[
+                            "color-chip",
+                            selected ? "color-chip-selected" : "",
+                          ].join(" ")}
+                          style={{
+                            background: c,
+                            boxShadow: isWhite
+                              ? "inset 0 0 0 2px rgba(36, 26, 34, 0.10), 0 6px 14px rgba(0,0,0,0.06)"
+                              : undefined,
+                          }}
+                          aria-label="Pick gray"
+                          onClick={() => {
+                            setTool("pen");
+                            setColor(c);
+                          }}
+                          disabled={isGenerating}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
                 <div className="color-wall">
                   {palette256.map((c) => {
                     const selected = tool === "pen" && color === c;
+                    const isWhite = c.toLowerCase() === "#ffffff";
                     return (
                       <button
                         key={c}
@@ -448,7 +501,12 @@ export default function DoodleApp() {
                           "color-chip",
                           selected ? "color-chip-selected" : "",
                         ].join(" ")}
-                        style={{ background: c }}
+                        style={{
+                          background: c,
+                          boxShadow: isWhite
+                            ? "inset 0 0 0 2px rgba(36, 26, 34, 0.10), 0 6px 14px rgba(0,0,0,0.06)"
+                            : undefined,
+                        }}
                         aria-label="Pick color"
                         onClick={() => {
                           setTool("pen");
