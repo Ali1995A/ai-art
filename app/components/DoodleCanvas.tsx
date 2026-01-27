@@ -221,12 +221,42 @@ function drawWatermark(
 
   ctx.textBaseline = "top";
   ctx.fillStyle = "rgba(36, 26, 34, 0.9)";
-  ctx.font = `600 ${Math.round(fontSize * 0.92)}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
-  ctx.fillText(spec.date, x + padX, y + padY);
+  const dateFontSize = Math.round(fontSize * 0.92);
+  ctx.font = `600 ${dateFontSize}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
+
   ctx.fillStyle = "rgba(155, 92, 255, 0.92)";
-  ctx.font = `650 ${Math.round(fontSize * 0.92)}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
+  const ccFontSize = Math.round(fontSize * 0.92);
+  ctx.font = `650 ${ccFontSize}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
   const cc = spec.creator || "CC";
   const ccW = ctx.measureText(cc).width;
+
+  ctx.fillStyle = "rgba(36, 26, 34, 0.9)";
+  ctx.font = `600 ${dateFontSize}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
+  const gap = Math.max(6, Math.round(fontSize * 0.35));
+  const maxDateW = Math.max(10, boxW - padX * 2 - ccW - gap);
+  const candidates = [spec.date];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(spec.date)) {
+    const yy = spec.date.slice(2, 4);
+    const mm = spec.date.slice(5, 7);
+    const dd = spec.date.slice(8, 10);
+    candidates.push(`${spec.date.replaceAll("-", ".")}`, `${yy}.${mm}.${dd}`);
+  }
+  let dateText = candidates[0] ?? "";
+  for (const c of candidates) {
+    if (ctx.measureText(c).width <= maxDateW) {
+      dateText = c;
+      break;
+    }
+  }
+  if (ctx.measureText(dateText).width > maxDateW) {
+    const shrink = Math.max(0.75, Math.min(1, maxDateW / ctx.measureText(dateText).width));
+    const s = Math.max(10, Math.round(dateFontSize * shrink));
+    ctx.font = `600 ${s}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
+  }
+  ctx.fillText(dateText, x + padX, y + padY);
+
+  ctx.fillStyle = "rgba(155, 92, 255, 0.92)";
+  ctx.font = `650 ${ccFontSize}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
   ctx.fillText(cc, x + boxW - padX - ccW, y + padY);
   ctx.restore();
 }
