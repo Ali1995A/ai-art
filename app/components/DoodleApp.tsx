@@ -607,6 +607,9 @@ export default function DoodleApp() {
         window.visualViewport?.height ??
         Math.min(window.innerHeight, document.documentElement.clientHeight);
       document.documentElement.style.setProperty("--app-height", `${height}px`);
+
+      const orient = window.innerWidth > window.innerHeight ? "landscape" : "portrait";
+      document.documentElement.dataset.orient = orient;
     };
     applyAppHeight();
     window.addEventListener("resize", applyAppHeight, { passive: true });
@@ -763,7 +766,7 @@ export default function DoodleApp() {
         <div
           className="split-layout"
         >
-          <div className="glass-card flex-1 p-3">
+          <div className="glass-card flex-1 p-3 flex flex-col">
             <div className="flex items-center justify-between gap-2 px-1 pb-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <button
