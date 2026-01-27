@@ -32,6 +32,33 @@ type GenerateResponse =
 const DEFAULT_BASE_PROMPT =
   "Turn the child's doodle into a friendly, cute picture. Keep the main shapes and colors. Clean background. Big simple shapes. No text. No watermark.";
 
+function hslToHex(h: number, s: number, l: number) {
+  const hh = ((h % 360) + 360) % 360;
+  const ss = Math.max(0, Math.min(100, s)) / 100;
+  const ll = Math.max(0, Math.min(100, l)) / 100;
+
+  const c = (1 - Math.abs(2 * ll - 1)) * ss;
+  const x = c * (1 - Math.abs(((hh / 60) % 2) - 1));
+  const m = ll - c / 2;
+
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (hh < 60) [r, g, b] = [c, x, 0];
+  else if (hh < 120) [r, g, b] = [x, c, 0];
+  else if (hh < 180) [r, g, b] = [0, c, x];
+  else if (hh < 240) [r, g, b] = [0, x, c];
+  else if (hh < 300) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+
+  const toHex = (v: number) =>
+    Math.round((v + m) * 255)
+      .toString(16)
+      .padStart(2, "0");
+
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
 export default function DoodleApp() {
   const canvasRef = useRef<DoodleCanvasHandle | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -44,6 +71,7 @@ export default function DoodleApp() {
   const [tool, setTool] = useState<"pen" | "eraser">("pen");
   const [brushSize, setBrushSize] = useState(12);
   const [color, setColor] = useState("#121212");
+  const [isColorWallOpen, setIsColorWallOpen] = useState(false);
 
   const styles = useMemo<StyleOption[]>(
     () => [
@@ -99,6 +127,22 @@ export default function DoodleApp() {
     () => styles.find((s) => s.id === styleId) ?? styles[0],
     [styleId, styles],
   );
+
+  const palette256 = useMemo(() => {
+    const hues = 16;
+    const lightness = [18, 26, 34, 44, 56, 66, 76, 86];
+    const sats = [92, 60];
+    const out: string[] = [];
+    for (let h = 0; h < hues; h++) {
+      const hue = Math.round((360 / hues) * h);
+      for (let li = 0; li < lightness.length; li++) {
+        for (let si = 0; si < sats.length; si++) {
+          out.push(hslToHex(hue, sats[si], lightness[li]));
+        }
+      }
+    }
+    return out.slice(0, 256);
+  }, []);
 
   useEffect(() => {
     const applyAppHeight = () => {
@@ -297,45 +341,41 @@ export default function DoodleApp() {
 
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-2">
-                  {[
-                    "#121212",
-                    "#ff4fa0",
-                    "#9b5cff",
-                    "#2bb3ff",
-                    "#2bd38f",
-                    "#ffd74a",
-                    "#ff7a2f",
-                    "#ffffff",
-                  ].map((c) => {
-                    const selected = color === c && tool === "pen";
-                    return (
-                      <button
-                        key={c}
-                        type="button"
-                        className="kid-button"
-                        onClick={() => {
-                          setTool("pen");
-                          setColor(c);
-                        }}
-                        aria-label="Color"
-                        disabled={isGenerating}
-                        style={{
-                          width: 30,
-                          height: 30,
-                          padding: 0,
-                          borderRadius: 999,
-                          background: c,
-                          border: selected
-                            ? "2px solid rgba(255, 79, 160, 0.9)"
-                            : "1px solid rgba(36, 26, 34, 0.12)",
-                          boxShadow:
-                            c === "#ffffff"
-                              ? "inset 0 0 0 2px rgba(36, 26, 34, 0.12)"
-                              : undefined,
-                        }}
-                      />
-                    );
-                  })}
+                  <button
+                    type="button"
+                    className="kid-button inline-flex items-center justify-center px-3"
+                    onClick={() => setIsColorWallOpen((v) => !v)}
+                    aria-label="Color palette"
+                    disabled={isGenerating}
+                    style={{
+                      height: 46,
+                      opacity: isGenerating ? 0.7 : 1,
+                      border: isColorWallOpen
+                        ? "2px solid rgba(255, 79, 160, 0.9)"
+                        : "1px solid rgba(36, 26, 34, 0.10)",
+                    }}
+                  >
+                    <span
+                      className="inline-block mr-2"
+                      aria-hidden
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: 999,
+                        background: tool === "eraser" ? "#ffffff" : color,
+                        border: "1px solid rgba(36, 26, 34, 0.12)",
+                        boxShadow:
+                          tool === "eraser"
+                            ? "inset 0 0 0 2px rgba(36, 26, 34, 0.10)"
+                            : undefined,
+                      }}
+                    />
+                    <span className="flex flex-col leading-tight text-[11px] font-semibold">
+                      <span>颜色</span>
+                      <span className="pinyin-text opacity-75">yán sè</span>
+                      <span className="en-text opacity-75">Color</span>
+                    </span>
+                  </button>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -377,6 +417,33 @@ export default function DoodleApp() {
                 </div>
               </div>
             </div>
+
+            {isColorWallOpen ? (
+              <div className="mt-3 glass-card p-3">
+                <div className="color-wall">
+                  {palette256.map((c) => {
+                    const selected = tool === "pen" && color === c;
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        className={[
+                          "color-chip",
+                          selected ? "color-chip-selected" : "",
+                        ].join(" ")}
+                        style={{ background: c }}
+                        aria-label="Pick color"
+                        onClick={() => {
+                          setTool("pen");
+                          setColor(c);
+                        }}
+                        disabled={isGenerating}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
 
             <DoodleCanvas
               ref={canvasRef}
