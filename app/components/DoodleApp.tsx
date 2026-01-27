@@ -256,7 +256,9 @@ export default function DoodleApp() {
   const [tool, setTool] = useState<"pen" | "eraser">("pen");
   const [brushSize, setBrushSize] = useState(12);
   const [color, setColor] = useState("#9b5cff");
+  const [backgroundColor, setBackgroundColor] = useState("#fff0f7");
   const [isColorWallOpen, setIsColorWallOpen] = useState(false);
+  const [colorWallTarget, setColorWallTarget] = useState<"pen" | "bg">("pen");
   const [recentColors, setRecentColors] = useState<string[]>([]);
 
   const styles = useMemo<StyleOption[]>(
@@ -343,9 +345,14 @@ export default function DoodleApp() {
   }, []);
 
   const selectColor = useCallback(
-    (hex: string) => {
-      setTool("pen");
-      setColor(hex);
+    (hex: string, target: "pen" | "bg") => {
+      if (target === "pen") {
+        setTool("pen");
+        setColor(hex);
+      } else {
+        setBackgroundColor(hex);
+        canvasRef.current?.setBackgroundColor(hex);
+      }
       rememberColor(hex);
       setIsColorWallOpen(false);
     },
@@ -424,6 +431,10 @@ export default function DoodleApp() {
     canvasRef.current?.setBackgroundImage(cleaned);
     setHasBackground(true);
   }, []);
+
+  useEffect(() => {
+    canvasRef.current?.setBackgroundColor(backgroundColor);
+  }, [backgroundColor]);
 
   const downloadDataUrl = useCallback((dataUrl: string, filename: string) => {
     const a = document.createElement("a");
@@ -597,7 +608,10 @@ export default function DoodleApp() {
                       "kid-btn-sm",
                       isColorWallOpen ? "kid-btn-selected" : "",
                     ].join(" ")}
-                    onClick={() => setIsColorWallOpen((v) => !v)}
+                    onClick={() => {
+                      setColorWallTarget("pen");
+                      setIsColorWallOpen((v) => !v);
+                    }}
                     aria-label="Color palette"
                     disabled={isGenerating}
                     style={{
@@ -626,6 +640,45 @@ export default function DoodleApp() {
                       </span>
                       <span className="label-line en-text opacity-75">
                         Color
+                      </span>
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={[
+                      "kid-button",
+                      "kid-btn-sm",
+                      isColorWallOpen && colorWallTarget === "bg"
+                        ? "kid-btn-selected"
+                        : "",
+                    ].join(" ")}
+                    onClick={() => {
+                      setColorWallTarget("bg");
+                      setIsColorWallOpen(true);
+                    }}
+                    aria-label="Background color"
+                    disabled={isGenerating}
+                    style={{ opacity: isGenerating ? 0.7 : 1 }}
+                  >
+                    <span
+                      className="inline-block"
+                      aria-hidden
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: 999,
+                        background: backgroundColor,
+                        border: "1px solid rgba(36, 26, 34, 0.12)",
+                      }}
+                    />
+                    <span className="kid-label">
+                      <span className="label-line">底色</span>
+                      <span className="label-line pinyin-text opacity-75">
+                        dǐ sè
+                      </span>
+                      <span className="label-line en-text opacity-75">
+                        Background
                       </span>
                     </span>
                   </button>
@@ -675,10 +728,13 @@ export default function DoodleApp() {
               <div className="mt-3 glass-card p-3">
                 <div className="mb-3">
                   <div className="color-wall">
-                  {grays16.map((c) => {
-                    const selected = tool === "pen" && color === c;
-                    const isWhite = c.toLowerCase() === "#ffffff";
-                    return (
+                    {grays16.map((c) => {
+                      const selected =
+                        colorWallTarget === "pen"
+                          ? tool === "pen" && color === c
+                          : backgroundColor === c;
+                      const isWhite = c.toLowerCase() === "#ffffff";
+                      return (
                         <button
                           key={c}
                           type="button"
@@ -694,7 +750,7 @@ export default function DoodleApp() {
                           }}
                           aria-label="Pick gray"
                           onClick={() => {
-                            selectColor(c);
+                            selectColor(c, colorWallTarget);
                           }}
                           disabled={isGenerating}
                         />
@@ -712,7 +768,10 @@ export default function DoodleApp() {
                     </div>
                     <div className="color-wall-12">
                       {recentColors.slice(0, 12).map((c) => {
-                        const selected = tool === "pen" && color === c;
+                        const selected =
+                          colorWallTarget === "pen"
+                            ? tool === "pen" && color === c
+                            : backgroundColor === c;
                         const isWhite = c.toLowerCase() === "#ffffff";
                         return (
                           <button
@@ -729,7 +788,7 @@ export default function DoodleApp() {
                                 : undefined,
                             }}
                             aria-label="Pick recent"
-                            onClick={() => selectColor(c)}
+                            onClick={() => selectColor(c, colorWallTarget)}
                             disabled={isGenerating}
                           />
                         );
@@ -739,7 +798,10 @@ export default function DoodleApp() {
                 ) : null}
                 <div className="color-wall">
                   {palette256.map((c) => {
-                    const selected = tool === "pen" && color === c;
+                    const selected =
+                      colorWallTarget === "pen"
+                        ? tool === "pen" && color === c
+                        : backgroundColor === c;
                     const isWhite = c.toLowerCase() === "#ffffff";
                     return (
                       <button
@@ -757,7 +819,7 @@ export default function DoodleApp() {
                         }}
                         aria-label="Pick color"
                         onClick={() => {
-                          selectColor(c);
+                          selectColor(c, colorWallTarget);
                         }}
                         disabled={isGenerating}
                       />
@@ -774,6 +836,7 @@ export default function DoodleApp() {
               color={color}
               brushSize={brushSize}
               tool={tool}
+              backgroundColor={backgroundColor}
             />
 
             <input

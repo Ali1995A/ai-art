@@ -21,6 +21,7 @@ export type DoodleCanvasHandle = {
   hasInk: () => boolean;
   hasBackground: () => boolean;
   setBackgroundImage: (dataUrl: string | null) => void;
+  setBackgroundColor: (hex: string) => void;
 };
 
 type Props = {
@@ -29,6 +30,7 @@ type Props = {
   color: string;
   brushSize: number; // css px
   tool: "pen" | "eraser";
+  backgroundColor: string;
 };
 
 function clamp(v: number, min: number, max: number) {
@@ -112,6 +114,7 @@ function drawFrame(
 function drawBackground(
   canvas: HTMLCanvasElement,
   bg: HTMLImageElement | null,
+  bgColor: string,
   opts?: { drawFrame?: boolean },
 ) {
   const ctx = canvas.getContext("2d");
@@ -120,7 +123,7 @@ function drawBackground(
   const w = canvas.width;
   const h = canvas.height;
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = bgColor || "#ffffff";
   ctx.fillRect(0, 0, w, h);
 
   if (bg && bg.naturalWidth > 0 && bg.naturalHeight > 0) {
@@ -155,7 +158,7 @@ function drawStrokesLayer(
 }
 
 const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas(
-  { className, onInkChange, color, brushSize, tool },
+  { className, onInkChange, color, brushSize, tool, backgroundColor },
   ref,
 ) {
   const bgCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -165,6 +168,7 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
   const strokesRef = useRef<Stroke[]>([]);
   const backgroundRef = useRef<HTMLImageElement | null>(null);
   const [hasBackground, setHasBackground] = useState(false);
+  const backgroundColorRef = useRef<string>(backgroundColor || "#ffffff");
   const drawingRef = useRef(false);
   const currentStrokeRef = useRef<Stroke | null>(null);
   const dpr = useMemo(() => (typeof window === "undefined" ? 1 : window.devicePixelRatio || 1), []);
@@ -199,7 +203,9 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
       c.style.height = `${cssH}px`;
     }
 
-    drawBackground(bgCanvas, backgroundRef.current, { drawFrame: true });
+    drawBackground(bgCanvas, backgroundRef.current, backgroundColorRef.current, {
+      drawFrame: true,
+    });
     drawStrokesLayer(drawCanvas, strokesRef.current, { drawFrame: true });
   }, [dpr]);
 
@@ -278,12 +284,27 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
       undo: () => commitStrokes(strokesRef.current.slice(0, -1)),
       hasInk: () => strokesRef.current.length > 0,
       hasBackground: () => hasBackground,
+      setBackgroundColor: (hex: string) => {
+        backgroundColorRef.current = hex || "#ffffff";
+        const bgCanvas = bgCanvasRef.current;
+        if (bgCanvas) {
+          drawBackground(
+            bgCanvas,
+            backgroundRef.current,
+            backgroundColorRef.current,
+            { drawFrame: true },
+          );
+        }
+      },
       setBackgroundImage: (dataUrl: string | null) => {
         if (!dataUrl) {
           backgroundRef.current = null;
           setHasBackground(false);
           const bgCanvas = bgCanvasRef.current;
-          if (bgCanvas) drawBackground(bgCanvas, null, { drawFrame: true });
+          if (bgCanvas)
+            drawBackground(bgCanvas, null, backgroundColorRef.current, {
+              drawFrame: true,
+            });
           return;
         }
 
@@ -292,7 +313,10 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
           backgroundRef.current = img;
           setHasBackground(true);
           const bgCanvas = bgCanvasRef.current;
-          if (bgCanvas) drawBackground(bgCanvas, img, { drawFrame: true });
+          if (bgCanvas)
+            drawBackground(bgCanvas, img, backgroundColorRef.current, {
+              drawFrame: true,
+            });
         };
         img.src = dataUrl;
       },
@@ -320,6 +344,16 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
     }),
     [commitStrokes, hasBackground],
   );
+
+  useEffect(() => {
+    backgroundColorRef.current = backgroundColor || "#ffffff";
+    const bgCanvas = bgCanvasRef.current;
+    if (bgCanvas) {
+      drawBackground(bgCanvas, backgroundRef.current, backgroundColorRef.current, {
+        drawFrame: true,
+      });
+    }
+  }, [backgroundColor]);
 
   return (
     <div
