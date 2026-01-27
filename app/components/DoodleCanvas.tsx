@@ -14,6 +14,12 @@ type Point = { x: number; y: number };
 type StrokeMode = "draw" | "erase";
 type Stroke = { points: Point[]; width: number; color: string; mode: StrokeMode };
 
+export type DoodleState = {
+  strokes: Stroke[];
+  backgroundColor: string;
+  backgroundImageDataUrl: string | null;
+};
+
 export type DoodleCanvasHandle = {
   clear: () => void;
   undo: () => void;
@@ -22,6 +28,8 @@ export type DoodleCanvasHandle = {
     maxSize: number,
     spec: { creator: string; date: string },
   ) => string;
+  getState: () => DoodleState;
+  setState: (state: DoodleState) => void;
   hasInk: () => boolean;
   hasBackground: () => boolean;
   setBackgroundImage: (dataUrl: string | null) => void;
@@ -32,6 +40,7 @@ type Props = {
   className?: string;
   onInkChange?: (hasInk: boolean) => void;
   onStartStroke?: () => void;
+  onStateChange?: (state: DoodleState) => void;
   color: string;
   brushSize: number; // css px
   tool: "pen" | "eraser";
@@ -219,7 +228,16 @@ function drawWatermark(
 }
 
 const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas(
-  { className, onInkChange, onStartStroke, color, brushSize, tool, backgroundColor },
+  {
+    className,
+    onInkChange,
+    onStartStroke,
+    onStateChange,
+    color,
+    brushSize,
+    tool,
+    backgroundColor,
+  },
   ref,
 ) {
   const bgCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -228,6 +246,7 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const strokesRef = useRef<Stroke[]>([]);
   const backgroundRef = useRef<HTMLImageElement | null>(null);
+  const backgroundDataUrlRef = useRef<string | null>(null);
   const [hasBackground, setHasBackground] = useState(false);
   const backgroundColorRef = useRef<string>(backgroundColor || "#ffffff");
   const drawingRef = useRef(false);
@@ -241,8 +260,13 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
       strokesRef.current = next;
       setStrokes(next);
       onInkChange?.(next.length > 0);
+      onStateChange?.({
+        strokes: strokesRef.current,
+        backgroundColor: backgroundColorRef.current,
+        backgroundImageDataUrl: backgroundDataUrlRef.current,
+      });
     },
-    [onInkChange],
+    [onInkChange, onStateChange],
   );
 
   const resizeCanvas = useCallback(() => {
@@ -444,6 +468,55 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
     () => ({
       clear: () => commitStrokes([]),
       undo: () => commitStrokes(strokesRef.current.slice(0, -1)),
+      getState: () => ({
+        strokes: strokesRef.current,
+        backgroundColor: backgroundColorRef.current,
+        backgroundImageDataUrl: backgroundDataUrlRef.current,
+      }),
+      setState: (state: DoodleState) => {
+        backgroundColorRef.current = state.backgroundColor || "#ffffff";
+        backgroundDataUrlRef.current = state.backgroundImageDataUrl || null;
+
+        strokesRef.current = Array.isArray(state.strokes) ? state.strokes : [];
+        setStrokes(strokesRef.current);
+        onInkChange?.(strokesRef.current.length > 0);
+        onStateChange?.({
+          strokes: strokesRef.current,
+          backgroundColor: backgroundColorRef.current,
+          backgroundImageDataUrl: backgroundDataUrlRef.current,
+        });
+
+        if (!backgroundDataUrlRef.current) {
+          backgroundRef.current = null;
+          setHasBackground(false);
+          const bgCanvas = bgCanvasRef.current;
+          if (bgCanvas)
+            drawBackground(bgCanvas, null, backgroundColorRef.current, {
+              drawFrame: true,
+            });
+
+          const drawCanvas = drawCanvasRef.current;
+          if (drawCanvas)
+            drawStrokesLayer(drawCanvas, strokesRef.current, { drawFrame: true });
+          return;
+        }
+
+        const img = new Image();
+        img.onload = () => {
+          backgroundRef.current = img;
+          setHasBackground(true);
+          const bgCanvas = bgCanvasRef.current;
+          if (bgCanvas)
+            drawBackground(bgCanvas, img, backgroundColorRef.current, {
+              drawFrame: true,
+            });
+
+          const drawCanvas = drawCanvasRef.current;
+          if (drawCanvas)
+            drawStrokesLayer(drawCanvas, strokesRef.current, { drawFrame: true });
+        };
+        img.src = backgroundDataUrlRef.current;
+      },
       hasInk: () => strokesRef.current.length > 0,
       hasBackground: () => hasBackground,
       setBackgroundColor: (hex: string) => {
@@ -457,9 +530,15 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
             { drawFrame: true },
           );
         }
+        onStateChange?.({
+          strokes: strokesRef.current,
+          backgroundColor: backgroundColorRef.current,
+          backgroundImageDataUrl: backgroundDataUrlRef.current,
+        });
       },
       setBackgroundImage: (dataUrl: string | null) => {
         if (!dataUrl) {
+          backgroundDataUrlRef.current = null;
           backgroundRef.current = null;
           setHasBackground(false);
           const bgCanvas = bgCanvasRef.current;
@@ -467,9 +546,15 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
             drawBackground(bgCanvas, null, backgroundColorRef.current, {
               drawFrame: true,
             });
+          onStateChange?.({
+            strokes: strokesRef.current,
+            backgroundColor: backgroundColorRef.current,
+            backgroundImageDataUrl: backgroundDataUrlRef.current,
+          });
           return;
         }
 
+        backgroundDataUrlRef.current = dataUrl;
         const img = new Image();
         img.onload = () => {
           backgroundRef.current = img;
@@ -479,6 +564,11 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
             drawBackground(bgCanvas, img, backgroundColorRef.current, {
               drawFrame: true,
             });
+          onStateChange?.({
+            strokes: strokesRef.current,
+            backgroundColor: backgroundColorRef.current,
+            backgroundImageDataUrl: backgroundDataUrlRef.current,
+          });
         };
         img.src = dataUrl;
       },
@@ -529,7 +619,7 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
         return out.toDataURL("image/png");
       },
     }),
-    [commitStrokes, hasBackground],
+    [commitStrokes, hasBackground, onInkChange, onStateChange],
   );
 
   useEffect(() => {

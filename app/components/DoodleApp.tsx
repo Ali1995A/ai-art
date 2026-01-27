@@ -2,7 +2,10 @@
 
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import DoodleCanvas, { type DoodleCanvasHandle } from "./DoodleCanvas";
+import DoodleCanvas, {
+  type DoodleCanvasHandle,
+  type DoodleState,
+} from "./DoodleCanvas";
 import {
   CollapseIcon,
   DownloadIcon,
@@ -41,6 +44,15 @@ type StyleOption = {
 type GenerateResponse =
   | { ok: true; imageDataUrl: string }
   | { ok: false; error: string };
+
+type PersistedSessionV1 = {
+  v: 1;
+  savedAt: number;
+  doodle: DoodleState;
+  aiPreviewDataUrl: string | null;
+  brushSize: number;
+  color: string;
+};
 
 const PROMPT_CORE =
   "You are enhancing a child's doodle. STRICTLY follow the doodle as the blueprint.\n" +
@@ -132,6 +144,37 @@ function dataUrlToBlob(dataUrl: string): Blob {
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return new Blob([bytes], { type: mime });
+}
+
+async function downscaleDataUrl(
+  dataUrl: string,
+  maxSide: number,
+  mime: "image/jpeg" | "image/png" = "image/jpeg",
+  quality = 0.86,
+): Promise<string> {
+  const img = await loadImageFromDataUrl(dataUrl);
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  if (!w || !h) return dataUrl;
+
+  const scale = Math.min(1, maxSide / Math.max(w, h));
+  const ow = Math.max(1, Math.round(w * scale));
+  const oh = Math.max(1, Math.round(h * scale));
+  if (ow === w && oh === h) return dataUrl;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = ow;
+  canvas.height = oh;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return dataUrl;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, 0, 0, ow, oh);
+  try {
+    return canvas.toDataURL(mime, quality);
+  } catch {
+    return canvas.toDataURL("image/png");
+  }
 }
 
 type WatermarkSpec = {
@@ -414,6 +457,11 @@ export default function DoodleApp() {
   const [downloadFallback, setDownloadFallback] = useState<
     Array<{ name: string; url: string }> | null
   >(null);
+  const persistTimerRef = useRef<number | null>(null);
+  const [pendingDoodleState, setPendingDoodleState] = useState<DoodleState | null>(
+    null,
+  );
+  const [aiPreviewDataUrl, setAiPreviewDataUrl] = useState<string | null>(null);
 
   type GenJob = {
     requestedStyle: StyleId;
@@ -602,6 +650,41 @@ export default function DoodleApp() {
     };
   }, [isDoodleMaximized]);
 
+  const persistSession = useCallback((session: PersistedSessionV1) => {
+    try {
+      localStorage.setItem("ai-art:session", JSON.stringify(session));
+    } catch {
+      // ignore quota / private mode issues
+    }
+  }, []);
+
+  const schedulePersist = useCallback(
+    (nextDoodle?: DoodleState | null, nextAiPreview?: string | null) => {
+      const doodle = nextDoodle ?? pendingDoodleState;
+      const ai = nextAiPreview ?? aiPreviewDataUrl;
+      if (!doodle) return;
+
+      if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = window.setTimeout(() => {
+        persistSession({
+          v: 1,
+          savedAt: Date.now(),
+          doodle,
+          aiPreviewDataUrl: ai ?? null,
+          brushSize,
+          color,
+        });
+      }, 250);
+    },
+    [aiPreviewDataUrl, brushSize, color, pendingDoodleState, persistSession],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current);
+    };
+  }, []);
+
   const rememberColor = useCallback((hex: string) => {
     const c = hex.toLowerCase();
     setRecentColors((prev) => {
@@ -630,6 +713,10 @@ export default function DoodleApp() {
     },
     [rememberColor],
   );
+
+  useEffect(() => {
+    if (pendingDoodleState) schedulePersist();
+  }, [brushSize, color, pendingDoodleState, schedulePersist]);
 
   const palette256 = useMemo(() => {
     const hues = 16;
@@ -698,6 +785,46 @@ export default function DoodleApp() {
     };
   }, []);
 
+  // Restore last session (fix iPad "back from Save" losing canvas state).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("ai-art:session");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as unknown;
+      if (!parsed || typeof parsed !== "object") return;
+
+      const s = parsed as Partial<PersistedSessionV1>;
+      if (s.v !== 1 || !s.doodle) return;
+
+      const doodle = s.doodle as DoodleState;
+      setPendingDoodleState(doodle);
+      setHasInk(Array.isArray(doodle.strokes) && doodle.strokes.length > 0);
+      setHasBackground(Boolean(doodle.backgroundImageDataUrl));
+      if (typeof doodle.backgroundColor === "string" && doodle.backgroundColor) {
+        setBackgroundColor(doodle.backgroundColor);
+      }
+
+      if (typeof s.brushSize === "number") setBrushSize(s.brushSize);
+      if (typeof s.color === "string") setColor(s.color);
+
+      if (typeof s.aiPreviewDataUrl === "string" && s.aiPreviewDataUrl) {
+        setImageDataUrl(s.aiPreviewDataUrl);
+        setAiPreviewDataUrl(s.aiPreviewDataUrl);
+      }
+
+      const apply = () => {
+        const handle = canvasRef.current;
+        if (!handle) return false;
+        handle.setState(doodle);
+        return true;
+      };
+
+      if (apply()) return;
+      const t = window.setTimeout(() => void apply(), 0);
+      return () => window.clearTimeout(t);
+    } catch {}
+  }, []);
+
   const undo = useCallback(() => {
     setError("");
     canvasRef.current?.undo();
@@ -717,7 +844,8 @@ export default function DoodleApp() {
     const dataUrl = await blobToDataUrl(file);
     const cleaned = await stripOurWatermarkFromDataUrl(dataUrl);
 
-    canvasRef.current?.setBackgroundImage(cleaned);
+    const stored = await downscaleDataUrl(cleaned, 1280, "image/jpeg", 0.86);
+    canvasRef.current?.setBackgroundImage(stored);
     setHasBackground(true);
   }, []);
 
@@ -929,13 +1057,28 @@ export default function DoodleApp() {
       const json = (await res.json()) as GenerateResponse;
       if (!json.ok) throw new Error(json.error || "Generate failed");
       setImageDataUrl(json.imageDataUrl);
+
+      try {
+        const preview = await downscaleDataUrl(
+          json.imageDataUrl,
+          1280,
+          "image/jpeg",
+          0.86,
+        );
+        setAiPreviewDataUrl(preview);
+        schedulePersist(undefined, preview);
+      } catch {}
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Generate failed";
       setError(msg);
     } finally {
       setIsGenerating(false);
     }
-  }, [styles]);
+  }, [schedulePersist, styles]);
+
+  useEffect(() => {
+    if (pendingDoodleState) schedulePersist();
+  }, [aiPreviewDataUrl, pendingDoodleState, schedulePersist]);
 
   const enqueueJob = useCallback(
     (requestedStyle: StyleId) => {
@@ -1310,6 +1453,11 @@ export default function DoodleApp() {
                 className="doodle-canvas-shell"
                 onInkChange={setHasInk}
                 onStartStroke={closeColorWall}
+                onStateChange={(s) => {
+                  setPendingDoodleState(s);
+                  setHasBackground(Boolean(s.backgroundImageDataUrl));
+                  schedulePersist(s);
+                }}
                 color={color}
                 brushSize={brushSize}
                 tool={tool}
