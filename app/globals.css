@@ -30,11 +30,12 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0b10;
-    --foreground: #fff6fb;
-    --card: rgba(18, 18, 22, 0.7);
-    --card-border: rgba(255, 255, 255, 0.12);
-    --shadow: 0 10px 30px rgba(255, 79, 160, 0.12);
+    /* Keep iOS-like pink theme even in system dark mode */
+    --background: #fff6fb;
+    --foreground: #241a22;
+    --card: rgba(255, 255, 255, 0.72);
+    --card-border: rgba(36, 26, 34, 0.08);
+    --shadow: 0 10px 30px rgba(255, 79, 160, 0.14);
   }
 }
 
@@ -75,13 +76,6 @@ body {
   border: 1px solid var(--card-border);
   background: rgba(255, 255, 255, 0.85);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
-}
-
-@media (prefers-color-scheme: dark) {
-  .kid-button {
-    background: rgba(30, 30, 38, 0.75);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
-  }
 }
 
 .pinyin-text {

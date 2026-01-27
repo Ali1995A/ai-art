@@ -574,7 +574,7 @@ export default function DoodleApp() {
               </div>
             </div>
 
-            <div className="relative flex-1 overflow-hidden rounded-2xl border border-[color:var(--card-border)] bg-white/70 dark:bg-black/20">
+            <div className="relative flex-1 overflow-hidden rounded-2xl border border-[color:var(--card-border)] bg-white/70">
               {imageDataUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -605,7 +605,7 @@ export default function DoodleApp() {
               )}
 
               {isGenerating ? (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/40 dark:bg-black/40 backdrop-blur-sm">
+                <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-sm">
                   <div className="kid-button px-5 py-3 text-sm font-semibold">
                     <span className="inline-flex items-center gap-2">
                       <span
@@ -642,7 +642,7 @@ export default function DoodleApp() {
             </div>
 
             {error ? (
-              <div className="mt-3 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-200">
+              <div className="mt-3 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700">
                 {error}
               </div>
             ) : null}
