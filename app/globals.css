@@ -176,6 +176,12 @@ body {
   gap: 6px;
 }
 
+.color-wall-12 {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 6px;
+}
+
 .color-chip {
   width: 100%;
   aspect-ratio: 1 / 1;

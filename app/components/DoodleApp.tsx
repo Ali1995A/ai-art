@@ -94,6 +94,7 @@ export default function DoodleApp() {
   const [brushSize, setBrushSize] = useState(12);
   const [color, setColor] = useState("#9b5cff");
   const [isColorWallOpen, setIsColorWallOpen] = useState(false);
+  const [recentColors, setRecentColors] = useState<string[]>([]);
 
   const styles = useMemo<StyleOption[]>(
     () => [
@@ -148,6 +149,44 @@ export default function DoodleApp() {
   const selectedStyle = useMemo(
     () => styles.find((s) => s.id === styleId) ?? styles[0],
     [styleId, styles],
+  );
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("ai-art:recentColors");
+      const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed
+          .filter((v): v is string => typeof v === "string")
+          .map((v) => v.trim())
+          .filter((v) => /^#[0-9a-fA-F]{6}$/.test(v));
+        if (cleaned.length) setRecentColors(cleaned.slice(0, 12));
+      }
+    } catch {}
+  }, []);
+
+  const rememberColor = useCallback((hex: string) => {
+    const c = hex.toLowerCase();
+    setRecentColors((prev) => {
+      const next = [c, ...prev.filter((p) => p.toLowerCase() !== c)].slice(
+        0,
+        12,
+      );
+      try {
+        localStorage.setItem("ai-art:recentColors", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  const selectColor = useCallback(
+    (hex: string) => {
+      setTool("pen");
+      setColor(hex);
+      rememberColor(hex);
+      setIsColorWallOpen(false);
+    },
+    [rememberColor],
   );
 
   const palette256 = useMemo(() => {
@@ -469,10 +508,10 @@ export default function DoodleApp() {
               <div className="mt-3 glass-card p-3">
                 <div className="mb-3">
                   <div className="color-wall">
-                    {grays16.map((c) => {
-                      const selected = tool === "pen" && color === c;
-                      const isWhite = c.toLowerCase() === "#ffffff";
-                      return (
+                  {grays16.map((c) => {
+                    const selected = tool === "pen" && color === c;
+                    const isWhite = c.toLowerCase() === "#ffffff";
+                    return (
                         <button
                           key={c}
                           type="button"
@@ -488,9 +527,7 @@ export default function DoodleApp() {
                           }}
                           aria-label="Pick gray"
                           onClick={() => {
-                            setTool("pen");
-                            setColor(c);
-                            setIsColorWallOpen(false);
+                            selectColor(c);
                           }}
                           disabled={isGenerating}
                         />
@@ -498,6 +535,41 @@ export default function DoodleApp() {
                     })}
                   </div>
                 </div>
+                {recentColors.length ? (
+                  <div className="mb-3">
+                    <div className="mb-2 flex items-center justify-between px-1">
+                      <div className="text-xs font-extrabold opacity-75">
+                        最近 <span className="pinyin-text">zuì jìn</span>{" "}
+                        <span className="en-text">Recent</span>
+                      </div>
+                    </div>
+                    <div className="color-wall-12">
+                      {recentColors.slice(0, 12).map((c) => {
+                        const selected = tool === "pen" && color === c;
+                        const isWhite = c.toLowerCase() === "#ffffff";
+                        return (
+                          <button
+                            key={c}
+                            type="button"
+                            className={[
+                              "color-chip",
+                              selected ? "color-chip-selected" : "",
+                            ].join(" ")}
+                            style={{
+                              background: c,
+                              boxShadow: isWhite
+                                ? "inset 0 0 0 2px rgba(36, 26, 34, 0.10), 0 6px 14px rgba(0,0,0,0.06)"
+                                : undefined,
+                            }}
+                            aria-label="Pick recent"
+                            onClick={() => selectColor(c)}
+                            disabled={isGenerating}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
                 <div className="color-wall">
                   {palette256.map((c) => {
                     const selected = tool === "pen" && color === c;
@@ -518,9 +590,7 @@ export default function DoodleApp() {
                         }}
                         aria-label="Pick color"
                         onClick={() => {
-                          setTool("pen");
-                          setColor(c);
-                          setIsColorWallOpen(false);
+                          selectColor(c);
                         }}
                         disabled={isGenerating}
                       />
