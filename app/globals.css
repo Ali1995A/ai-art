@@ -132,9 +132,13 @@ body {
 }
 
 .kid-slider {
-  width: clamp(120px, 26vw, 180px);
+  width: clamp(96px, 20vw, 160px);
   height: 22px;
   accent-color: var(--pink-600);
+}
+
+html[data-orient="portrait"] .kid-slider {
+  width: clamp(96px, 34vw, 180px);
 }
 
 .kid-slider::-webkit-slider-runnable-track {

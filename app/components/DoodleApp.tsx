@@ -883,7 +883,7 @@ export default function DoodleApp() {
           className="split-layout"
         >
           <div className="glass-card pane p-3 flex flex-col">
-            <div className="scroll-x no-scrollbar flex items-center gap-2 px-1 pb-2">
+            <div className="scroll-x no-scrollbar flex-1 min-w-0 flex items-center gap-2 px-1 pb-2">
                 <button
                   type="button"
                   className="kid-button kid-btn-sm"
