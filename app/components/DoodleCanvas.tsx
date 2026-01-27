@@ -188,13 +188,14 @@ function drawStrokesLayer(
 }
 
 function watermarkBoxForSize(w: number, h: number) {
-  const base = Math.max(18, Math.round(Math.min(w, h) * 0.03));
+  // Smaller, more regular iOS-like watermark badge.
+  const base = Math.max(12, Math.round(Math.min(w, h) * 0.02));
   const fontSize = base;
-  const padX = Math.round(base * 0.7);
-  const padY = Math.round(base * 0.55);
-  const margin = Math.round(base * 0.6);
-  const boxW = Math.round(base * 6.6);
-  const boxH = Math.round(base * 2.2);
+  const padX = Math.round(base * 0.55);
+  const padY = Math.round(base * 0.45);
+  const margin = Math.round(base * 0.55);
+  const boxW = Math.round(base * 7.0);
+  const boxH = Math.round(base * 1.85);
   const x = w - margin - boxW;
   const y = h - margin - boxH;
   return { x, y, boxW, boxH, fontSize, padX, padY };
@@ -207,23 +208,26 @@ function drawWatermark(
   spec: { creator: string; date: string },
 ) {
   const { x, y, boxW, boxH, fontSize, padX, padY } = watermarkBoxForSize(w, h);
-  const r = Math.round(fontSize * 0.7);
+  const r = Math.round(fontSize * 0.65);
 
   ctx.save();
+  ctx.globalAlpha = 0.5;
   roundRectPath(ctx, x, y, boxW, boxH, r);
-  ctx.fillStyle = "rgba(255, 255, 255, 0.70)";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
   ctx.fill();
-  ctx.strokeStyle = "rgba(255, 79, 160, 0.25)";
-  ctx.lineWidth = Math.max(2, Math.round(fontSize * 0.1));
+  ctx.strokeStyle = "rgba(255, 79, 160, 0.22)";
+  ctx.lineWidth = Math.max(1, Math.round(fontSize * 0.08));
   ctx.stroke();
 
   ctx.textBaseline = "top";
-  ctx.fillStyle = "rgba(36, 26, 34, 0.78)";
-  ctx.font = `700 ${fontSize}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
+  ctx.fillStyle = "rgba(36, 26, 34, 0.9)";
+  ctx.font = `600 ${Math.round(fontSize * 0.92)}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
   ctx.fillText(spec.date, x + padX, y + padY);
-  ctx.fillStyle = "rgba(155, 92, 255, 0.85)";
-  ctx.font = `800 ${Math.round(fontSize * 1.05)}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
-  ctx.fillText(spec.creator, x + padX, y + padY + Math.round(fontSize * 1.1));
+  ctx.fillStyle = "rgba(155, 92, 255, 0.92)";
+  ctx.font = `650 ${Math.round(fontSize * 0.92)}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
+  const cc = spec.creator || "CC";
+  const ccW = ctx.measureText(cc).width;
+  ctx.fillText(cc, x + boxW - padX - ccW, y + padY);
   ctx.restore();
 }
 
