@@ -1085,7 +1085,7 @@ export default function DoodleApp() {
 
           <div className="glass-card pane p-3 flex flex-col">
             <div className="flex items-center justify-between px-1 pb-2 gap-2">
-              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pr-2">
+              <div className="scroll-x no-scrollbar flex-1 min-w-0 flex items-center gap-2 pr-2">
                 {styles.map((s) => {
                   const selected = s.id === styleId;
                   return (
