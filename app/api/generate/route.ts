@@ -1,3 +1,5 @@
+import { withWebGuard, GuardError, bufferedFetch } from "../../../server/ai-guard.cjs";
+import { policy } from "../../../server/policy.cjs";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -22,10 +24,7 @@ function toPrompt(base: string, style?: string) {
   return parts.join("\n");
 }
 
-function mapQuality(q?: ReqBody["quality"]) {
-  if (!q || q === "fast") return "low";
-  return q;
-}
+
 
 function normalizeDoubaoSize(v: unknown): string | undefined {
   const s = typeof v === "string" ? v.trim().toLowerCase() : "";
@@ -80,7 +79,7 @@ function toBase64(buffer: ArrayBuffer) {
   return Buffer.from(buffer).toString("base64");
 }
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   try {
     const body = (await req.json()) as ReqBody;
     const baseUrl = (process.env.AIHUBMIX_BASE_URL ?? "https://aihubmix.com/v1").replace(/\/+$/, "");
@@ -88,7 +87,12 @@ export async function POST(req: Request) {
     const model = process.env.AIHUBMIX_IMAGE_MODEL ?? "doubao-seedream-4-5";
 
     const prompt = toPrompt(body.prompt, body.stylePrompt);
-    const quality = mapQuality(body.quality);
+    // Cost-driving options belong to the server, not arbitrary API callers.
+    const quality = process.env.AI_IMAGE_QUALITY || "low";
+    const imageSize = process.env.AI_IMAGE_SIZE || "512x512";
+    if (!["low", "medium", "high"].includes(quality) || !["512x512", "1024x1024", "1024x1536", "1536x1024"].includes(imageSize)) {
+      throw new GuardError(503, "INVALID_IMAGE_CONFIG", "绘画服务配置需要家长检查。");
+    }
     const doubaoSize =
       normalizeDoubaoSize(process.env.AIHUBMIX_DOUBAO_SIZE) ?? "2k";
 
@@ -97,7 +101,7 @@ export async function POST(req: Request) {
       isDoubaoModel(model);
 
     const upstream = usePredictionsApi
-      ? await fetch(
+      ? await bufferedFetch(
           `${baseUrl}/models/doubao/${encodeURIComponent(model)}/predictions`,
           {
             method: "POST",
@@ -122,7 +126,7 @@ export async function POST(req: Request) {
             }),
           },
         )
-      : await fetch(`${baseUrl}/images/generations`, {
+      : await bufferedFetch(`${baseUrl}/images/generations`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${apiKey}`,
@@ -131,7 +135,7 @@ export async function POST(req: Request) {
           body: JSON.stringify({
             model,
             prompt,
-            size: body.size ?? "512x512",
+            size: imageSize,
             n: 1,
             quality,
             response_format: "b64_json",
@@ -162,7 +166,7 @@ export async function POST(req: Request) {
     if (extracted?.kind === "url") {
       // Make client-side saving/watermarking reliable by returning a data URL
       // (avoids CORS-tainted canvas in Safari/WeChat browsers).
-      const imgRes = await fetch(extracted.value);
+      const imgRes = await bufferedFetch(extracted.value);
       if (!imgRes.ok) {
         return NextResponse.json(
           {
@@ -188,7 +192,12 @@ export async function POST(req: Request) {
       { status: 502 },
     );
   } catch (e) {
+    if (e instanceof GuardError) throw e;
     const msg = e instanceof Error ? e.message : "Bad request";
     return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }
+}
+
+export async function POST(req: Request) {
+  return withWebGuard(req, policy, handlePOST);
 }
